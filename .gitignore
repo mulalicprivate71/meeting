@@ -2,3 +2,6 @@ node_modules/
 *.bak.html
 build/work/
 build/tpl/
+test/out_*.docx
+test/mock.html
+functions/node_modules/

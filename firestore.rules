@@ -1,0 +1,116 @@
+rules_version = '2';
+// Zapisnici sastanaka — pravila pristupa (Firestore).
+// STATUS: nisu isprobana u Firebase emulatoru ni na stvarnom projektu.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- pomoćne funkcije ----------
+    function signedIn() { return request.auth != null; }
+    function memRef() { return /databases/$(database)/documents/memberships/$(request.auth.uid); }
+    function hasMem() { return signedIn() && exists(memRef()); }
+    function roleOf(inst) { return hasMem() ? get(memRef()).data.get(inst, '') : ''; }
+    function isMember(inst) { return roleOf(inst) in ['direktor', 'uprava', 'voditelj', 'clan']; }
+    function isUprava(inst) { return roleOf(inst) in ['direktor', 'uprava']; }
+    function isDirektor(inst) { return roleOf(inst) == 'direktor'; }
+
+    // Ko smije vidjeti sastanke ustanove; zajednički: samo uprava (ili direktor) obje ustanove.
+    function canSee(scope) {
+      return signedIn() && (
+        scope == 'IMH' ? isMember('IMH') :
+        scope == 'IDSS' ? isMember('IDSS') :
+        scope == 'ZAJEDNICKI' ? (isUprava('IMH') && isUprava('IDSS')) : false);
+    }
+    // Potvrđivanje zapisnika: samo direktor (za zajednički sastanak direktor obje ustanove). Odluka Direktora, QP 10.
+    function canConfirm(scope) {
+      return signedIn() && (
+        scope == 'IMH' ? isDirektor('IMH') :
+        scope == 'IDSS' ? isDirektor('IDSS') :
+        scope == 'ZAJEDNICKI' ? (isDirektor('IMH') && isDirektor('IDSS')) : false);
+    }
+    function canEdit(scope, author) { return canSee(scope) && (author == request.auth.uid || canConfirm(scope)); }
+
+    function validTransition(o, n) {
+      return o == n
+        || (o == 'saglasnost' && n in ['snimanje', 'nacrt'])
+        || (o == 'snimanje' && n in ['obrada', 'nacrt'])
+        || (o == 'obrada' && n == 'nacrt')
+        || (o == 'nacrt' && n == 'potvrdjen');
+    }
+
+    function meetingPath(id) { return /databases/$(database)/documents/meetings/$(id); }
+    function canSeeMeeting(id) {
+      return exists(meetingPath(id)) && canSee(get(meetingPath(id)).data.scope)
+        && (get(meetingPath(id)).data.conf == false
+            || get(meetingPath(id)).data.createdBy == request.auth.uid
+            || canConfirm(get(meetingPath(id)).data.scope));
+    }
+
+    // ---------- članstva: korisnik čita samo svoje; upisuje administrator (Admin SDK / konzola) ----------
+    match /memberships/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // ---------- sastanci i zapisnici ----------
+    match /meetings/{id} {
+      allow read: if canSee(resource.data.scope)
+        && (resource.data.conf == false
+            || resource.data.createdBy == request.auth.uid
+            || canConfirm(resource.data.scope));
+
+      allow create: if canSee(request.resource.data.scope)
+        && request.resource.data.keys().hasOnly(['scope', 'status', 'podaci', 'conf', 'createdBy', 'createdAt', 'rev'])
+        && request.resource.data.scope in ['IMH', 'IDSS', 'ZAJEDNICKI']
+        && request.resource.data.status in ['saglasnost', 'nacrt']
+        && request.resource.data.podaci is map
+        && request.resource.data.conf == (request.resource.data.podaci.get('povjerljivost', '') == 'Strogo povjerljivo')
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.rev == 1;
+
+      // Izmjena samo dok nije potvrđen; samo autor ili direktor; ustanova i autor se ne mijenjaju.
+      allow update: if resource.data.status != 'potvrdjen'
+        && canEdit(resource.data.scope, resource.data.createdBy)
+        && request.resource.data.keys().hasOnly(['scope', 'status', 'podaci', 'conf', 'createdBy', 'createdAt', 'rev', 'confirmedBy', 'confirmedAt'])
+        && request.resource.data.scope == resource.data.scope
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.podaci is map
+        && request.resource.data.conf == (request.resource.data.podaci.get('povjerljivost', '') == 'Strogo povjerljivo')
+        && request.resource.data.rev == resource.data.rev + 1
+        && validTransition(resource.data.status, request.resource.data.status)
+        && (request.resource.data.status != 'potvrdjen'
+            || (canConfirm(resource.data.scope)
+                && request.resource.data.confirmedBy == request.auth.uid
+                && request.resource.data.confirmedAt == request.time))
+        && (request.resource.data.status == 'potvrdjen'
+            || (!('confirmedBy' in request.resource.data) && !('confirmedAt' in request.resource.data)));
+
+      allow delete: if false;
+
+      // Evidencija saglasnosti za snimanje: samo dok je sastanak u fazi saglasnosti; nema izmjene ni brisanja.
+      match /consents/{cid} {
+        allow read: if canSeeMeeting(id);
+        allow create: if signedIn()
+          && exists(meetingPath(id))
+          && get(meetingPath(id)).data.status == 'saglasnost'
+          && canEdit(get(meetingPath(id)).data.scope, get(meetingPath(id)).data.createdBy)
+          && request.resource.data.keys().hasOnly(['givenBy', 'note', 'recordedBy', 'recordedAt'])
+          && request.resource.data.givenBy is string
+          && request.resource.data.recordedBy == request.auth.uid
+          && request.resource.data.recordedAt == request.time;
+        allow update, delete: if false;
+      }
+
+      // Transkripti i dnevnik radnji: upisuju samo funkcije (Admin SDK); čita direktor.
+      match /transcripts/{tid} {
+        allow read: if exists(meetingPath(id)) && canConfirm(get(meetingPath(id)).data.scope);
+        allow write: if false;
+      }
+      match /audit/{aid} {
+        allow read: if exists(meetingPath(id)) && canConfirm(get(meetingPath(id)).data.scope);
+        allow write: if false;
+      }
+    }
+  }
+}

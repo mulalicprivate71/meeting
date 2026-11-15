@@ -6,7 +6,7 @@ const base=require('path').resolve(__dirname,'..')+'/';
   const p = await ctx.newPage();
   const errs=[]; p.on('pageerror',e=>errs.push('PAGEERR '+e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE '+m.text()); });
   const dlg=[]; p.on('dialog',d=>{dlg.push(d.message().slice(0,80)); d.accept();});
-  await p.goto('file://'+base+'../app/index.html');
+  await p.goto('file://'+base+'app/index.html');
   const X='<img src=x onerror="window.__xss=1"><script>window.__xss=2</script>"\'&amp;';
   await p.fill('#em','t@idss.ba'); await p.fill('#im',X); await p.click('#go');
   await p.click('nav.tabs button[data-k="novi"]');

@@ -75,10 +75,12 @@ td input,td select,td textarea{border:none;padding:3px;min-height:0;background:t
 <script>/*@@JSZIP@@*/</script>
 <script>
 /* ============ KONFIGURACIJA ============ */
-// Za rad s Supabase unesite adresu projekta i javni (anon) ključ. Ako su prazni, aplikacija radi u DEMO načinu (podaci ostaju u ovom pregledniku).
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
-const PROCESS_FUNCTION = "process-meeting";   // naziv serverske funkcije za obradu snimka
+// Firebase: kad se aplikacija objavi na Firebase Hostingu, postavke se učitavaju same (adresa /__/firebase/init.json).
+// Za drugi hosting upišite postavke web aplikacije iz Firebase konzole. Ako ih nema, aplikacija radi u DEMO načinu
+// (podaci ostaju samo u ovom pregledniku).
+const FIREBASE_CONFIG = {apiKey:"", authDomain:"", projectId:"", storageBucket:"", appId:""};
+const FUNCTIONS_REGION = "europe-west1";
+const FIREBASE_VER = "10.12.2";
 const KOD_OBRASCA = "QP 10.ZS-01", IZDANJE = "01";
 
 const USTANOVE = {
@@ -107,11 +109,20 @@ let memStore = {};
 const fmtDat = d => d? new Date(d).toLocaleDateString("bs-Latn-BA"):"";
 
 /* ============ SKLADIŠTE PODATAKA ============ */
-const DEMO = !(SUPABASE_URL && SUPABASE_ANON_KEY);
-let sb = null;
-async function fnErr(error){
-  try{ if(error && error.context && error.context.json){ const j=await error.context.json(); if(j && j.error) return new Error(j.error); } }catch(e){}
-  return error;
+let DEMO = true;                 // postaje false tek kad se Firebase uspješno pokrene (init)
+let fb = null;                   // {auth, db, storage, fns, ts}
+const NAZIVI_GRESAKA = {
+  "permission-denied":"Nemate pravo na ovu radnju, ili je zapisnik zaključan.",
+  "unauthenticated":"Niste prijavljeni. Prijavite se ponovo.",
+  "unavailable":"Veza sa serverom nije dostupna. Provjerite internet i pokušajte ponovo.",
+  "deadline-exceeded":"Server nije odgovorio na vrijeme. Pokušajte ponovo.",
+  "unauthorized":"Nemate pravo na ovu radnju."
+};
+function fbErr(e){
+  const c = e && (e.code||"").replace(/^(functions|storage|auth)\//,"");
+  if(e && e.message && /^(Obrada|Snimak|Sastanak|Sastanci|Nema|Neispravan|Prepoznavanje|Izrada|Nacrt|Zapisnik)/.test(e.message)) return e; // poruke naših funkcija
+  if(c && NAZIVI_GRESAKA[c]) return new Error(NAZIVI_GRESAKA[c]);
+  return e;
 }
 function extZa(blob){
   const t=(blob.type||"").toLowerCase(), n=(blob.name||"").toLowerCase();
@@ -130,9 +141,19 @@ const store = {
       stored.forEach(x=>byId[x.id]=x); Object.values(memStore).forEach(x=>byId[x.id]=x);
       return Object.values(byId).sort((a,b)=>(b.created||"").localeCompare(a.created||""));
     }
-    const {data,error}=await sb.from("meetings").select("*").order("created_at",{ascending:false});
-    if(error) throw error;
-    return data.map(r=>({...r.podaci, id:r.id, status:r.status, scope:r.scope, created:r.created_at, _rev:r.updated_at}));
+    // Upiti odgovaraju pravilima pristupa: direktor vidi sve u ustanovi; ostali vide opće/povjerljive i vlastite strogo povjerljive.
+    const uid = S.user.id, col = fb.db.collection("meetings"), mem = S.mem||{}, qs = [];
+    const up = i => ["direktor","uprava"].includes(mem[i]);
+    const scopes = ["IMH","IDSS"].filter(i=>mem[i]);
+    if(up("IMH") && up("IDSS")) scopes.push("ZAJEDNICKI");
+    scopes.forEach(sc=>{
+      const dir = sc==="ZAJEDNICKI" ? (mem.IMH==="direktor"&&mem.IDSS==="direktor") : mem[sc]==="direktor";
+      if(dir) qs.push(col.where("scope","==",sc).get());
+      else { qs.push(col.where("scope","==",sc).where("conf","==",false).get()); qs.push(col.where("scope","==",sc).where("createdBy","==",uid).get()); }
+    });
+    const res = await Promise.all(qs), byId = {};
+    res.forEach(snap=>snap.forEach(d=>{ const r=d.data(); byId[d.id]={...r.podaci, id:d.id, status:r.status, scope:r.scope, _rev:r.rev}; }));
+    return Object.values(byId).sort((a,b)=>(b.created||"").localeCompare(a.created||""));
   },
   save(m){
     const run = ()=>this._save(m);
@@ -146,35 +167,45 @@ const store = {
       if(i>=0) all[i]=m; else all.push(m);
       lsSet("zs_meetings", all); return m;
     }
-    const podaci = {...m}; delete podaci._rev;
-    const row = {scope:m.scope, status:m.status, podaci};
-    if(!m._rev){
-      const {data,error}=await sb.from("meetings").insert({id:m.id, ...row}).select("updated_at").single();
-      if(error) throw error; m._rev=data.updated_at; return m;
-    }
-    const {data,error}=await sb.from("meetings").update(row).eq("id",m.id).eq("updated_at",m._rev).select("updated_at");
-    if(error) throw error;
-    if(!data || !data.length) throw new Error("Zapisnik je u međuvremenu izmijenjen ili je zaključan. Osvježite stranicu i ponovite izmjene.");
-    m._rev=data[0].updated_at; return m;
+    const podaci = JSON.parse(JSON.stringify(m)); delete podaci._rev;
+    const conf = m.povjerljivost==="Strogo povjerljivo";
+    const ref = fb.db.collection("meetings").doc(m.id);
+    try{
+      if(!m._rev){
+        await ref.set({scope:m.scope, status:m.status, podaci, conf, createdBy:S.user.id, createdAt:fb.ts(), rev:1});
+        m._rev = 1; return m;
+      }
+      await fb.db.runTransaction(async tx=>{
+        const snap = await tx.get(ref);
+        if(!snap.exists || snap.data().rev !== m._rev) throw Object.assign(new Error("Zapisnik je u međuvremenu izmijenjen. Osvježite stranicu i ponovite izmjene."),{konflikt:true});
+        const d = snap.data();
+        const upd = {scope:d.scope, status:m.status, podaci, conf, createdBy:d.createdBy, createdAt:d.createdAt, rev:d.rev+1};
+        if(m.status==="potvrdjen" && d.status!=="potvrdjen"){ upd.confirmedBy=S.user.id; upd.confirmedAt=fb.ts(); }
+        tx.set(ref, upd);
+      });
+      m._rev += 1; return m;
+    }catch(e){ throw fbErr(e); }
   },
   async consent(m){
     if(DEMO) return;
-    const {error}=await sb.from("consents").insert({meeting_id:m.id, given_by:m.saglasnost.dao, note:m.saglasnost.tekst}); if(error) throw error;
+    try{ await fb.db.collection("meetings").doc(m.id).collection("consents").add({givenBy:m.saglasnost.dao, note:m.saglasnost.tekst||"", recordedBy:S.user.id, recordedAt:fb.ts()}); }
+    catch(e){ throw fbErr(e); }
   },
   async uploadChunk(m,name,blob){
     if(DEMO) return;
-    const {error}=await sb.storage.from("snimci").upload(`${m.id}/${name}`, blob, {contentType:blob.type||"audio/webm"});
-    if(error) throw error;
+    const CT={m4a:"audio/mp4",mp3:"audio/mpeg",wav:"audio/wav",ogg:"audio/ogg",aac:"audio/aac",webm:"audio/webm"};
+    try{ await fb.storage.ref(`snimci/${m.id}/${name}`).put(blob,{contentType:CT[(name.split(".").pop()||"").toLowerCase()]||"audio/webm"}); }
+    catch(e){ throw fbErr(e); }
   },
   async process(m){
     if(DEMO) return null;
-    const {data,error}=await sb.functions.invoke(PROCESS_FUNCTION,{body:{meeting_id:m.id, lang:"bs"}});
-    if(error) throw await fnErr(error); return data;
+    try{ const r = await fb.fns.httpsCallable("processMeeting",{timeout:900000})({meetingId:m.id, lang:"bs"}); return r.data; }
+    catch(e){ throw fbErr(e); }
   },
   async purge(m){
     if(DEMO) return null;
-    const {data,error}=await sb.functions.invoke(PROCESS_FUNCTION,{body:{meeting_id:m.id, action:"purge"}});
-    if(error) throw await fnErr(error); return data;
+    try{ const r = await fb.fns.httpsCallable("purgeRecording")({meetingId:m.id}); return r.data; }
+    catch(e){ throw fbErr(e); }
   }
 };
 
@@ -195,12 +226,40 @@ function prazanZapisnik(base){
 }
 
 /* ============ PRIJAVA ============ */
+function ucitajSkriptu(src){ return new Promise((ok,no)=>{ const t=document.createElement("script"); t.src=src; t.onload=ok; t.onerror=()=>no(new Error("Nije moguće učitati "+src)); document.head.appendChild(t); }); }
+async function firebasePokreni(){
+  let cfg = FIREBASE_CONFIG.apiKey ? FIREBASE_CONFIG : null;
+  if(!cfg && location.protocol.startsWith("http")){
+    try{ const r = await fetch("/__/firebase/init.json"); if(r.ok){ const j = await r.json(); if(j && j.apiKey) cfg = j; } }catch(e){}
+  }
+  if(!cfg) return false;
+  const B = "https://www.gstatic.com/firebasejs/"+FIREBASE_VER+"/firebase-";
+  for(const p of ["app","auth","firestore","storage","functions"]) await ucitajSkriptu(B+p+"-compat.js");
+  const app = firebase.initializeApp(cfg);
+  fb = {auth:firebase.auth(), db:firebase.firestore(), storage:firebase.storage(), fns:app.functions(FUNCTIONS_REGION),
+        ts:()=>firebase.firestore.FieldValue.serverTimestamp()};
+  return true;
+}
+async function ucitajKorisnika(u){
+  // Uloge dodjeljuje administrator (dokument memberships/<uid>); bez uloge se pristup ne odobrava.
+  let mem = {};
+  const d = await fb.db.collection("memberships").doc(u.uid).get();   // greška čitanja (npr. mreža) se prijavljuje, ne tumači kao „nema uloge“
+  mem = d.exists ? d.data() : {};
+  const UL = ["direktor","uprava","voditelj","clan"];
+  ["IMH","IDSS"].forEach(i=>{ if(!UL.includes(mem[i])) delete mem[i]; });
+  S.mem = mem;
+  S.user = {email:u.email, id:u.uid, ime:mem.ime||u.displayName||u.email};
+  return !!(mem.IMH||mem.IDSS);
+}
 async function init(){
+  try{
+    DEMO = !(await firebasePokreni());
+  }catch(e){
+    DEMO = true; S.initGreska = e.message;
+  }
   if(!DEMO){
-    await new Promise((ok,no)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";s.onload=ok;s.onerror=no;document.head.appendChild(s);});
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const {data} = await sb.auth.getSession();
-    if(data.session) S.user = {email:data.session.user.email, id:data.session.user.id};
+    const u = await new Promise(ok=>{ const off=fb.auth.onAuthStateChanged(x=>{ off(); ok(x); }); });
+    if(u){ try{ const ima = await ucitajKorisnika(u); if(!ima){ S.bezUloge=true; await fb.auth.signOut(); S.user=null; } }catch(e){ S.initGreska="Podaci o ulozi se ne mogu učitati: "+e.message; S.user=null; } }
   } else {
     S.user = lsGet("zs_user", null);
   }
@@ -210,7 +269,8 @@ function prijava(){
   $("#tabs").innerHTML=""; $("#who").textContent=""; $("#logout").classList.add("hide");
   $("#main").innerHTML = `
   <h2>Prijava</h2>
-  ${DEMO? `<div class="note"><b>DEMO način.</b> Podaci ostaju samo u ovom pregledniku, a obrada snimka (prepoznavanje govora) nije povezana. Povezivanje s Supabase opisano je u uputama.</div>`:""}
+  ${DEMO? `<div class="note"><b>DEMO način.</b> Podaci ostaju samo u ovom pregledniku, a obrada snimka (prepoznavanje govora) nije povezana. Povezivanje s Firebase opisano je u uputama.${S.initGreska?" <br><b>Firebase se nije pokrenuo:</b> "+esc(S.initGreska):""}</div>`:""}
+  ${S.bezUloge?`<div class="note">Vašem nalogu još nije dodijeljena uloga. Obratite se administratoru.</div>`:""}
   <div class="row" style="max-width:520px">
     <div><label>E-pošta</label><input id="em" type="email" autocomplete="username"></div>
     ${DEMO? `<div><label>Ime i prezime</label><input id="im"></div>`:`<div><label>Lozinka</label><input id="pw" type="password" autocomplete="current-password"></div>`}
@@ -224,9 +284,12 @@ function prijava(){
       const im=$("#im").value.trim(); if(!im){ $("#perr").textContent="Unesite ime i prezime."; return; }
       S.user={email:em,ime:im}; lsSet("zs_user",S.user); render();
     } else {
-      const {data,error}=await sb.auth.signInWithPassword({email:em,password:$("#pw").value});
-      if(error){ $("#perr").textContent="Prijava nije uspjela: "+error.message; return; }
-      S.user={email:data.user.email,id:data.user.id}; render();
+      try{
+        const cr = await fb.auth.signInWithEmailAndPassword(em,$("#pw").value);
+        const ima = await ucitajKorisnika(cr.user);
+        if(!ima){ await fb.auth.signOut(); S.user=null; S.bezUloge=true; prijava(); return; }
+        S.bezUloge=false; render();
+      }catch(e){ $("#perr").textContent="Prijava nije uspjela: "+(/auth\/(invalid|wrong|user-not-found)/.test(e.code||"")?"pogrešna e-pošta ili lozinka.":e.message); }
     }
   };
 }
@@ -237,7 +300,7 @@ async function render(){
   if(!S.user){ prijava(); return; }
   $("#who").textContent = S.user.ime||S.user.email;
   const lo=$("#logout"); lo.classList.remove("hide");
-  lo.onclick = async ()=>{ if(!DEMO) await sb.auth.signOut(); S.user=null; lsSet("zs_user",null); render(); };
+  lo.onclick = async ()=>{ if(!DEMO) await fb.auth.signOut(); S.user=null; S.mem=null; lsSet("zs_user",null); render(); };
   $("#tabs").innerHTML = TABOVI.map(([k,t])=>`<button class="${S.tab===k?"on":""}" data-k="${k}">${t}</button>`).join("");
   document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{ if(S.rec&&!confirm("Snimanje je u toku. Napustiti ekran?"))return; S.tab=b.dataset.k; S.cur=null; render(); });
   try{ S.meetings = await store.list(); }catch(e){ $("#main").innerHTML=`<div class="note">Greška pri čitanju: ${esc(e.message)}</div>`; return; }
@@ -485,7 +548,7 @@ function ekranPregled(m){
       if(problemi.length && !confirm("Prije potvrde provjerite:\n\n- "+problemi.join("\n- ")+"\n\nPotvrditi svejedno?")) return;
       if(!confirm("Potvrditi zapisnik? Nakon potvrde se više ne može mijenjati.")) return;
       m.status="potvrdjen"; m.potvrdio=S.user.ime||S.user.email; m.potvrdjenoKada=new Date().toISOString();
-      try{ await store.save(m); }catch(e){ m.status="nacrt"; alert("Potvrda nije uspjela: "+e.message); return; }
+      try{ await store.save(m); }catch(e){ m.status="nacrt"; m.potvrdio=""; m.potvrdjenoKada=""; alert("Potvrda nije uspjela: "+e.message); return; }
       if(!DEMO && m.snimano){ try{ await store.purge(m); }catch(e){ alert("Zapisnik je potvrđen, ali snimak nije obrisan: "+e.message+"\nObrišite ga dugmetom „Obriši snimak“ u potvrđenom zapisniku."); } }
       render();
     };
@@ -556,9 +619,9 @@ function upute(){
   $("#main").innerHTML = `<h2>Upute</h2>
   <div class="card"><b>Tok:</b> priprema → saglasnost → snimanje (ili otprema audija) → obrada → pregled i ispravka → potvrda → arhiva i ispis.</div>
   <div class="card"><b>Zajednički sastanak uprave:</b> uz svaku tačku i zadatak bira se ustanova (IMH, IDSS ili zajedničko). Nakon potvrde moguće je ispisati izvod za IMH ili za IDSS; izvod sadrži samo tačke i zadatke te ustanove i zajedničke.</div>
-  <div class="card"><b>Povjerljivost:</b> u Supabase načinu pristup određuju uloge po ustanovi (pravila pristupa u bazi). U DEMO načinu ta zaštita ne postoji.</div>
+  <div class="card"><b>Povjerljivost:</b> u Firebase načinu pristup određuju uloge po ustanovi (pravila pristupa u bazi). U DEMO načinu ta zaštita ne postoji.</div>
   <div class="card"><b>Ispis:</b> dugme „Ispis / PDF“ otvara ispis obrasca QP 10.ZS-01; u dijalogu odaberite „Sačuvaj kao PDF“.</div>
-  <div class="card"><b>Način rada:</b> ${DEMO?"DEMO (podaci su samo u ovom pregledniku)":"povezano sa Supabase"}.</div>`;
+  <div class="card"><b>Način rada:</b> ${DEMO?"DEMO (podaci su samo u ovom pregledniku)":"povezano sa Firebase"}.</div>`;
 }
 
 window.addEventListener("beforeunload",e=>{ if(S.rec){ e.preventDefault(); e.returnValue=""; } });

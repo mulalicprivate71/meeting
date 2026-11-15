@@ -2,10 +2,12 @@
 
 Prototip rješenja za snimanje sastanaka, obradu snimka i zapisnik u propisanom obliku (obrasci QP 10.ZS-01 i QP 10.ZS-02, procedura QP 10).
 
-- `app/` — aplikacija (`index.src.html` je izvor, `index.html` je sastavljen jedan fajl s ugrađenim memorandumima), `schema.sql` (Supabase), `process-meeting/` (serverska funkcija; Gemini ili OpenAI/Anthropic), `UPUTE.md`
+- `app/` — aplikacija (`index.src.html` je izvor, `index.html` je sastavljen jedan fajl s ugrađenim memorandumima), `UPUTE.md`
+- `firestore.rules`, `storage.rules`, `firebase.json` — Firebase pravila i postavke; `functions/` — Cloud Functions (Gemini, rotacija 5 ključeva); `tools/add-member.js` — uloge korisnika
+- `probni-razgovor/` — izmišljeni sastanak za probu i očekivani rezultat
 - `forms/` — obrasci ZS-01 (IDSS, IMH) i ZS-02 (zajednički sastanak uprave)
 - `docs/` — nacrt procedure QP 10 i primjer izvoza s probnim podacima
 - `build/` — skripte koje prave obrasce i sastavljaju `index.html` (`build_tpl.py`); `build/att` su memorandumi. Pokretanje: `python3 build/build.py`, `python3 build/build_qp.py`, `python3 build/build_tpl.py` (potrebni Python 3 i `zip`)
-- `test/` — Playwright testovi (`node test/t.js` itd.; `t5.js` traži `test/mock.html`, tj. `index.html` s upisanim probnim `SUPABASE_URL` i `SUPABASE_ANON_KEY`)
+- `test/` — Playwright testovi (`node test/t.js` itd.; `t5.js` koristi simulirani Firebase iz `test/firebase-stub.js`; funkcije: `cd functions && npm test`)
 
-Status: nije isprobano sa stvarnim Supabase projektom, SQL šemom, funkcijom za obradu i stvarnim snimkom. Repozitorij držati privatnim (sadrži podatke i memorandume škole).
+Status: nije isprobano na stvarnom Firebase projektu (pravila, funkcije, Gemini) ni sa stvarnim snimkom; vidi `app/UPUTE.md`. Repozitorij držati privatnim (sadrži podatke i memorandume škole).

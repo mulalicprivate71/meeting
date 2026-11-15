@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zapisnici sastanaka — IMH i IDSS</title>
+<style>
+:root{
+  --idss:#035EA1; --idss2:#08ABE6; --imh:#9F633F; --imh2:#2CB14D;
+  --ink:#1b1b1b; --mut:#5b5b5b; --line:#d6d6d6; --bg:#f6f6f4; --card:#fff; --acc:#035EA1;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Century Gothic","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg);font-size:15px;line-height:1.5}
+header.top{background:#000;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header.top h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.3px}
+header.top .sp{flex:1}
+header.top button{background:transparent;color:#fff;border:1px solid #777}
+.stripe{height:4px;background:linear-gradient(90deg,var(--idss) 0 50%,var(--imh) 50% 100%)}
+nav.tabs{display:flex;gap:4px;padding:10px 20px 0;flex-wrap:wrap}
+nav.tabs button{background:#e8e8e5;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;padding:8px 16px;cursor:pointer;color:var(--ink)}
+nav.tabs button.on{background:var(--card);font-weight:600}
+main{background:var(--card);margin:0 20px 40px;border:1px solid var(--line);padding:22px;min-height:60vh}
+h2{margin:0 0 14px;font-size:20px;color:var(--acc)}
+h3{margin:22px 0 8px;font-size:15px;color:var(--acc);border-bottom:1px solid var(--line);padding-bottom:4px}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 3px;font-weight:600}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid #bbb;border-radius:6px;font:inherit;background:#fff}
+textarea{min-height:90px;resize:vertical}
+input:disabled,textarea:disabled,select:disabled{background:#f0f0ee;color:#333}
+button{font:inherit;padding:8px 16px;border-radius:6px;border:1px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer}
+button.sec{background:#fff;color:var(--acc)}
+button.dng{background:#a32020;border-color:#a32020}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.card{border:1px solid var(--line);border-radius:8px;padding:14px;margin:10px 0;background:#fcfcfb}
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;color:#fff}
+.b-IDSS{background:var(--idss)}.b-IMH{background:var(--imh)}.b-ZAJEDNICKI{background:#222}
+.st-nacrt{background:#b36b00}.st-potvrdjen{background:#2a7d3d}.st-snimanje,.st-obrada{background:#555}
+.note{background:#fff8e1;border:1px solid #e6cf85;padding:10px 12px;border-radius:6px;font-size:13px;margin:10px 0}
+.ok{background:#eef8ef;border-color:#9cc9a3}
+table{border-collapse:collapse;width:100%;margin:6px 0}
+@media screen and (max-width:700px){table{display:block;overflow-x:auto;max-width:100%}td,th,b,h1,h2,h3,p,div,span,label{overflow-wrap:anywhere}}
+th,td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top;font-size:13px}
+th{background:var(--acc);color:#fff;font-weight:600}
+td input,td select,td textarea{border:none;padding:3px;min-height:0;background:transparent}
+.rec{display:flex;align-items:center;gap:16px;margin:16px 0;flex-wrap:wrap}
+.dot{width:16px;height:16px;border-radius:50%;background:#a32020;animation:p 1s infinite}
+@keyframes p{50%{opacity:.25}}
+.time{font-size:30px;font-variant-numeric:tabular-nums}
+.muted{color:var(--mut);font-size:13px}
+.hide{display:none!important}
+.small{font-size:12px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+#print{display:none}
+@media print{
+  body{background:#fff}
+  header.top,.stripe,nav.tabs,main{display:none!important}
+  #print{display:block;padding:0 10mm}
+  #print table th{background:var(--acc)!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #print .foot{position:fixed;bottom:0;left:10mm;right:10mm;border-top:2px solid var(--acc);font-size:10px;padding-top:4px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Zapisnici sastanaka — IMH i IDSS</h1>
+  <span class="sp"></span>
+  <span id="who" class="small"></span>
+  <button id="logout" class="hide">Odjava</button>
+</header>
+<div class="stripe"></div>
+<nav class="tabs" id="tabs"></nav>
+<main id="main"></main>
+<div id="print"></div>
+
+<script>/*@@JSZIP@@*/</script>
+<script>
+/* ============ KONFIGURACIJA ============ */
+// Za rad s Supabase unesite adresu projekta i javni (anon) ključ. Ako su prazni, aplikacija radi u DEMO načinu (podaci ostaju u ovom pregledniku).
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
+const PROCESS_FUNCTION = "process-meeting";   // naziv serverske funkcije za obradu snimka
+const KOD_OBRASCA = "QP 10.ZS-01", IZDANJE = "01";
+
+const USTANOVE = {
+  IDSS: {naziv: "Privatna ustanova INTERNATIONALE DEUTSCHE SCHULE SARAJEVO – Međunarodna njemačka škola Sarajevo", boja: "#035EA1"},
+  IMH:  {naziv: "Privatna predškolska ustanova „International Montessori House“ Sarajevo", boja: "#9F633F"},
+  ZAJEDNICKI: {naziv: "Zajednički sastanak uprave — IMH i IDSS", boja: "#222222"}
+};
+const TIPOVI = ["Razgovor sa zaposlenim","Individualni roditeljski sastanak","Grupni (razredni) roditeljski sastanak","Sastanak sa partnerom","Radni sastanak tima / stručnog organa","Drugo"];
+const TIPOVI_ZAJ = ["Redovni sastanak uprave","Vanredni sastanak uprave","Strateški / planski sastanak","Drugo"];
+const tipoviZa = sc => sc==="ZAJEDNICKI"? TIPOVI_ZAJ : TIPOVI;
+const OZNAKE = ["IMH","IDSS","zajedničko"];
+
+/* ============ POMOĆNE ============ */
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = ()=>{
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16); (window.crypto&&crypto.getRandomValues? crypto.getRandomValues(b): b.forEach((_,i)=>b[i]=Math.floor(Math.random()*256)));
+  b[6]=(b[6]&0x0f)|0x40; b[8]=(b[8]&0x3f)|0x80; const h=[...b].map(x=>x.toString(16).padStart(2,"0")).join("");
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+};
+function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+let lsUpozoren=false;
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ if(!lsUpozoren){ lsUpozoren=true; alert("Podaci se ne mogu trajno sačuvati u ovom pregledniku (privatni prozor ili pun prostor). Preuzmite DOCX prije zatvaranja stranice."); } return false; } }
+let memStore = {};
+const fmtDat = d => d? new Date(d).toLocaleDateString("bs-Latn-BA"):"";
+
+/* ============ SKLADIŠTE PODATAKA ============ */
+const DEMO = !(SUPABASE_URL && SUPABASE_ANON_KEY);
+let sb = null;
+async function fnErr(error){
+  try{ if(error && error.context && error.context.json){ const j=await error.context.json(); if(j && j.error) return new Error(j.error); } }catch(e){}
+  return error;
+}
+function extZa(blob){
+  const t=(blob.type||"").toLowerCase(), n=(blob.name||"").toLowerCase();
+  if(t.includes("mp4")||t.includes("m4a")||/\.(m4a|mp4)$/.test(n)) return "m4a";
+  if(t.includes("mpeg")||t.includes("mp3")||/\.mp3$/.test(n)) return "mp3";
+  if(t.includes("wav")||/\.wav$/.test(n)) return "wav";
+  if(t.includes("ogg")||/\.ogg$/.test(n)) return "ogg";
+  if(t.includes("aac")||/\.aac$/.test(n)) return "aac";
+  return "webm";
+}
+let saveQ = Promise.resolve();
+const store = {
+  async list(){
+    if(DEMO){
+      const stored = lsGet("zs_meetings", [])||[]; const byId = {};
+      stored.forEach(x=>byId[x.id]=x); Object.values(memStore).forEach(x=>byId[x.id]=x);
+      return Object.values(byId).sort((a,b)=>(b.created||"").localeCompare(a.created||""));
+    }
+    const {data,error}=await sb.from("meetings").select("*").order("created_at",{ascending:false});
+    if(error) throw error;
+    return data.map(r=>({...r.podaci, id:r.id, status:r.status, scope:r.scope, created:r.created_at, _rev:r.updated_at}));
+  },
+  save(m){
+    const run = ()=>this._save(m);
+    const p = saveQ.then(run, run); saveQ = p.catch(()=>{}); return p;
+  },
+  async _save(m){
+    m.updated = new Date().toISOString();
+    if(DEMO){
+      memStore[m.id]=m;
+      const all = lsGet("zs_meetings", [])||[]; const i = all.findIndex(x=>x.id===m.id);
+      if(i>=0) all[i]=m; else all.push(m);
+      lsSet("zs_meetings", all); return m;
+    }
+    const podaci = {...m}; delete podaci._rev;
+    const row = {scope:m.scope, status:m.status, podaci};
+    if(!m._rev){
+      const {data,error}=await sb.from("meetings").insert({id:m.id, ...row}).select("updated_at").single();
+      if(error) throw error; m._rev=data.updated_at; return m;
+    }
+    const {data,error}=await sb.from("meetings").update(row).eq("id",m.id).eq("updated_at",m._rev).select("updated_at");
+    if(error) throw error;
+    if(!data || !data.length) throw new Error("Zapisnik je u međuvremenu izmijenjen ili je zaključan. Osvježite stranicu i ponovite izmjene.");
+    m._rev=data[0].updated_at; return m;
+  },
+  async consent(m){
+    if(DEMO) return;
+    const {error}=await sb.from("consents").insert({meeting_id:m.id, given_by:m.saglasnost.dao, note:m.saglasnost.tekst}); if(error) throw error;
+  },
+  async uploadChunk(m,name,blob){
+    if(DEMO) return;
+    const {error}=await sb.storage.from("snimci").upload(`${m.id}/${name}`, blob, {contentType:blob.type||"audio/webm"});
+    if(error) throw error;
+  },
+  async process(m){
+    if(DEMO) return null;
+    const {data,error}=await sb.functions.invoke(PROCESS_FUNCTION,{body:{meeting_id:m.id, lang:"bs"}});
+    if(error) throw await fnErr(error); return data;
+  },
+  async purge(m){
+    if(DEMO) return null;
+    const {data,error}=await sb.functions.invoke(PROCESS_FUNCTION,{body:{meeting_id:m.id, action:"purge"}});
+    if(error) throw await fnErr(error); return data;
+  }
+};
+
+/* ============ STANJE ============ */
+const S = {user:null, tab:"novi", meetings:[], cur:null, rec:null};
+
+function prazanZapisnik(base){
+  return Object.assign({
+    id:uid(), created:new Date().toISOString(), status:"nacrt", scope:"IDSS", tip:TIPOVI[0], tema:"", mjesto:"", datum:new Date().toISOString().slice(0,10),
+    pocetak:"", kraj:"", povjerljivost:"Opći", broj:"", snimano:false,
+    saglasnost:{data:false,dao:"",kada:"",tekst:""},
+    prisutni:[{ime:"",uloga:"",napomena:""}], odsutniOp:"", odsutniNeop:"", bezGlasa:"",
+    kvorum:"Nije potreban", predsjedavajuci:"", zapisnicar:"",
+    dnevni:[{naslov:"",oznaka:"zajedničko"}],
+    tacke:[], zadaci:[{zadatak:"",odgovorna:"",rok:"",status:"Otvoren",oznaka:"zajedničko"}],
+    prilozi:"", naredni:"", transkript:"", potvrdio:"", potvrdjenoKada:"", audioObrisan:false, fazaSnimka:"nije"
+  }, base||{});
+}
+
+/* ============ PRIJAVA ============ */
+async function init(){
+  if(!DEMO){
+    await new Promise((ok,no)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";s.onload=ok;s.onerror=no;document.head.appendChild(s);});
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const {data} = await sb.auth.getSession();
+    if(data.session) S.user = {email:data.session.user.email, id:data.session.user.id};
+  } else {
+    S.user = lsGet("zs_user", null);
+  }
+  render();
+}
+function prijava(){
+  $("#tabs").innerHTML=""; $("#who").textContent=""; $("#logout").classList.add("hide");
+  $("#main").innerHTML = `
+  <h2>Prijava</h2>
+  ${DEMO? `<div class="note"><b>DEMO način.</b> Podaci ostaju samo u ovom pregledniku, a obrada snimka (prepoznavanje govora) nije povezana. Povezivanje s Supabase opisano je u uputama.</div>`:""}
+  <div class="row" style="max-width:520px">
+    <div><label>E-pošta</label><input id="em" type="email" autocomplete="username"></div>
+    ${DEMO? `<div><label>Ime i prezime</label><input id="im"></div>`:`<div><label>Lozinka</label><input id="pw" type="password" autocomplete="current-password"></div>`}
+  </div>
+  <p id="perr" class="muted" style="color:#a32020"></p>
+  <button id="go">Prijavi se</button>`;
+  $("#go").onclick = async ()=>{
+    const em=$("#em").value.trim();
+    if(!em){ $("#perr").textContent="Unesite e-poštu."; return; }
+    if(DEMO){
+      const im=$("#im").value.trim(); if(!im){ $("#perr").textContent="Unesite ime i prezime."; return; }
+      S.user={email:em,ime:im}; lsSet("zs_user",S.user); render();
+    } else {
+      const {data,error}=await sb.auth.signInWithPassword({email:em,password:$("#pw").value});
+      if(error){ $("#perr").textContent="Prijava nije uspjela: "+error.message; return; }
+      S.user={email:data.user.email,id:data.user.id}; render();
+    }
+  };
+}
+
+/* ============ GLAVNI OKVIR ============ */
+const TABOVI = [["novi","Novi sastanak"],["arhiva","Arhiva"],["upute","Upute"]];
+async function render(){
+  if(!S.user){ prijava(); return; }
+  $("#who").textContent = S.user.ime||S.user.email;
+  const lo=$("#logout"); lo.classList.remove("hide");
+  lo.onclick = async ()=>{ if(!DEMO) await sb.auth.signOut(); S.user=null; lsSet("zs_user",null); render(); };
+  $("#tabs").innerHTML = TABOVI.map(([k,t])=>`<button class="${S.tab===k?"on":""}" data-k="${k}">${t}</button>`).join("");
+  document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{ if(S.rec&&!confirm("Snimanje je u toku. Napustiti ekran?"))return; S.tab=b.dataset.k; S.cur=null; render(); });
+  try{ S.meetings = await store.list(); }catch(e){ $("#main").innerHTML=`<div class="note">Greška pri čitanju: ${esc(e.message)}</div>`; return; }
+  if(S.cur) return radni();
+  if(S.tab==="novi") return noviEkran();
+  if(S.tab==="arhiva") return arhiva();
+  return upute();
+}
+
+/* ============ NOVI SASTANAK ============ */
+function noviEkran(){
+  $("#main").innerHTML = `
+  <h2>Priprema sastanka</h2>
+  <div class="row">
+    <div><label>Ustanova</label><select id="n_sc">${Object.entries(USTANOVE).map(([k,v])=>`<option value="${k}">${k==="ZAJEDNICKI"?"Zajednički sastanak uprave (IMH + IDSS)":k}</option>`).join("")}</select></div>
+    <div><label>Vrsta sastanka</label><select id="n_tip">${TIPOVI.map(t=>`<option>${esc(t)}</option>`).join("")}</select></div>
+  </div>
+  <label>Tema sastanka</label><input id="n_tema">
+  <div class="row">
+    <div><label>Mjesto</label><input id="n_mj"></div>
+    <div><label>Datum</label><input id="n_dat" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div><label>Nivo povjerljivosti</label><select id="n_pov"><option>Opći</option><option>Povjerljiv</option><option>Strogo povjerljivo</option></select></div>
+  </div>
+  <div class="row">
+    <div><label>Predsjedavajući</label><input id="n_pred"></div>
+    <div><label>Zapisničar</label><input id="n_zap" value="${esc(S.user.ime||"")}"></div>
+  </div>
+  <label>Učesnici (jedan red = jedna osoba, format: Ime i prezime — funkcija)</label>
+  <textarea id="n_uc" placeholder="Ime Prezime — direktor"></textarea>
+  <label>Dnevni red (jedan red = jedna tačka; za zajednički sastanak dodajte oznaku na kraju reda: [IMH], [IDSS] ili [zajedničko])</label>
+  <textarea id="n_dn" placeholder="Prva tačka\nDruga tačka"></textarea>
+  <div class="actions"><button id="n_go">Nastavi na saglasnost i snimanje</button></div>`;
+  $("#n_sc").onchange = e=>{ $("#n_tip").innerHTML = tipoviZa(e.target.value).map(t=>`<option>${esc(t)}</option>`).join(""); };
+  $("#n_go").onclick = ()=>{
+    const sc=$("#n_sc").value;
+    const prisutni = $("#n_uc").value.split("\n").map(r=>r.trim()).filter(Boolean).map(r=>{const [i,...u]=r.split(/\s[—–-]\s/); return {ime:i.trim(),uloga:(u.join(" – ")||"").trim(),napomena:""};});
+    const dnevni = $("#n_dn").value.split("\n").map(r=>r.trim()).filter(Boolean).map(r=>{
+      const m=r.match(/\s*\[(IMH|IDSS|zajedničko)\]\s*$/i); return {naslov:r.replace(/\s*\[[^\]]+\]\s*$/,""), oznaka:m?m[1].replace(/^zajedničko$/i,"zajedničko"):(sc==="ZAJEDNICKI"?"zajedničko":sc)};
+    });
+    const m = prazanZapisnik({scope:sc,tip:$("#n_tip").value,tema:$("#n_tema").value.trim(),mjesto:$("#n_mj").value.trim(),datum:$("#n_dat").value,povjerljivost:$("#n_pov").value,predsjedavajuci:$("#n_pred").value.trim(),zapisnicar:$("#n_zap").value.trim(),
+      prisutni:prisutni.length?prisutni:[{ime:"",uloga:"",napomena:""}], dnevni:dnevni.length?dnevni:[{naslov:"",oznaka:sc==="ZAJEDNICKI"?"zajedničko":sc}]});
+    if(!m.tema){ alert("Unesite temu sastanka."); return; }
+    m.tacke = m.dnevni.map(d=>({naslov:d.naslov,oznaka:d.oznaka,rasprava:"",za:"",protiv:"",suzdrzani:"",nacin:"Bez glasanja",zakljucak:"",izdvojeno:""}));
+    m.status="saglasnost";
+    store.save(m).then(()=>{ S.cur=m.id; render(); }).catch(e=>alert("Greška: "+e.message));
+  };
+}
+
+/* ============ RADNI EKRAN (saglasnost → snimanje → obrada → pregled) ============ */
+function cur(){ return S.meetings.find(m=>m.id===S.cur); }
+function zaglavljeSastanka(m){
+  return `<p><span class="badge b-${m.scope}">${m.scope==="ZAJEDNICKI"?"Zajednički":m.scope}</span> <span class="badge st-${m.status}">${statusTekst(m.status)}</span> &nbsp;<b>${esc(m.tema)}</b> <span class="muted">· ${esc(m.tip)} · ${fmtDat(m.datum)}</span></p>`;
+}
+function statusTekst(s){ return {saglasnost:"saglasnost",snimanje:"snimanje",obrada:"obrada",nacrt:"nacrt",potvrdjen:"potvrđen"}[s]||s; }
+function radni(){
+  const m=cur(); if(!m){ S.cur=null; return render(); }
+  document.documentElement.style.setProperty("--acc", USTANOVE[m.scope==="ZAJEDNICKI"?"IDSS":m.scope].boja);
+  if(m.status==="saglasnost") return ekranSaglasnost(m);
+  if(m.status==="snimanje") return ekranSnimanje(m);
+  if(m.status==="obrada") return ekranObrada(m);
+  return ekranPregled(m);
+}
+
+function ekranSaglasnost(m){
+  $("#main").innerHTML = zaglavljeSastanka(m)+`
+  <h2>Saglasnost za snimanje</h2>
+  <div class="note">Snimanje je dozvoljeno samo uz saglasnost <b>svih prisutnih</b>. Saglasnost se evidentira prije početka. Snimak se briše nakon potvrde zapisnika.</div>
+  <label><input type="checkbox" id="s_da" style="width:auto"> Svi prisutni su obaviješteni o snimanju i saglasni su.</label>
+  <label>Ko je saglasnost evidentirao (ime i prezime)</label><input id="s_ko" value="${esc(S.user.ime||"")}">
+  <div class="actions">
+    <button id="s_sn" disabled>Nastavi na snimanje</button>
+    <button id="s_bez" class="sec">Nastavi bez snimanja (ručni unos)</button>
+  </div>`;
+  const prov=()=>{ $("#s_sn").disabled = !($("#s_da").checked && $("#s_ko").value.trim()); };
+  $("#s_da").onchange=prov; $("#s_ko").oninput=prov;
+  $("#s_sn").onclick=async()=>{
+    m.saglasnost={data:true,dao:$("#s_ko").value.trim(),kada:new Date().toISOString(),tekst:"Svi prisutni obaviješteni i saglasni sa snimanjem."};
+    m.snimano=true; m.status="snimanje";
+    try{ await store.consent(m); await store.save(m);}catch(e){ alert("Greška: "+e.message); return; }
+    render();
+  };
+  $("#s_bez").onclick=async()=>{ m.snimano=false; m.status="nacrt"; await store.save(m); render(); };
+}
+
+function fmtT(s){ const h=Math.floor(s/3600),mm=Math.floor(s%3600/60),ss=s%60; return [h,mm,ss].map(x=>String(x).padStart(2,"0")).join(":"); }
+function ekranSnimanje(m){
+  $("#main").innerHTML = zaglavljeSastanka(m)+`
+  <h2>Snimanje</h2>
+  <div class="note">Ne zaključavajte ekran i ne prelazite u drugu aplikaciju dok traje snimanje. Za duge sastanke koristite laptop s mikrofonom na stolu.</div>
+  <div class="rec"><span id="r_dot" class="dot hide"></span><span class="time" id="r_t">00:00:00</span>
+    <button id="r_start">Počni snimanje</button><button id="r_stop" class="dng hide">Završi snimanje</button></div>
+  <p id="r_msg" class="muted"></p>
+  <h3>Ili učitajte gotov audio zapis</h3>
+  <input type="file" id="r_file" accept="audio/*">
+  <div id="r_prev"></div>
+  <h3>Ili zalijepite transkript (za probu bez prepoznavanja govora)</h3>
+  <textarea id="r_tr" placeholder="Tekst razgovora…">${esc(m.transkript||"")}</textarea>
+  <div class="actions"><button id="r_next" class="sec">Nastavi na obradu</button></div>`;
+  let chunks=[], n=0, t0=0, tick=null, mr=null, stream=null, wl=null, pending=[], failed=0, uploaded=false;
+  const msg=t=>$("#r_msg").textContent=t;
+  $("#r_start").onclick=async()=>{
+    if(uploaded){ msg("Već ste učitali audio zapis. Snimanje i učitavanje ne miješajte u istom sastanku."); return; }
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    }catch(e){ msg("Mikrofon nije dostupan: "+e.message+". Možete učitati gotov audio zapis."); return; }
+    const mt = ["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t));
+    mr = new MediaRecorder(stream, Object.assign(mt?{mimeType:mt}:{}, {audioBitsPerSecond:32000}));
+    mr.ondataavailable = ev=>{
+      if(!ev.data.size) return; chunks.push(ev.data); n++; const k=n;
+      pending.push(store.uploadChunk(m, String(k).padStart(5,"0")+"."+extZa(ev.data), ev.data).catch(e=>{ failed++; msg("Upozorenje: komad "+k+" nije poslan ("+e.message+"). Preuzmite snimak nakon završetka i sačuvajte ga."); }));
+    };
+    mr.onstop = ()=>{
+      stream.getTracks().forEach(t=>t.stop()); clearInterval(tick); if(wl){try{wl.release();}catch(e){}}
+      const blob=new Blob(chunks,{type:mr.mimeType||"audio/webm"}); S.rec=null;
+      $("#r_dot").classList.add("hide"); $("#r_stop").classList.add("hide"); $("#r_start").classList.add("hide");
+      $("#r_prev").innerHTML=`<p>Snimak završen (${fmtT(Math.round((Date.now()-t0)/1000))}).</p><audio controls src="${URL.createObjectURL(blob)}"></audio><br><a download="snimak-${m.id}.webm" href="${URL.createObjectURL(blob)}">Preuzmi snimak</a>`;
+      m.fazaSnimka="snimljeno"; m.kraj = m.kraj || new Date().toTimeString().slice(0,5); store.save(m);
+    };
+    try{ if(navigator.wakeLock) wl = await navigator.wakeLock.request("screen"); }catch(e){}
+    mr.start(30000); t0=Date.now(); m.pocetak = m.pocetak || new Date().toTimeString().slice(0,5);
+    S.rec=mr; $("#r_dot").classList.remove("hide"); $("#r_stop").classList.remove("hide"); $("#r_start").classList.add("hide");
+    tick=setInterval(()=>$("#r_t").textContent=fmtT(Math.round((Date.now()-t0)/1000)),500);
+    msg("Snimanje je u toku. Komadi od po 30 sekundi šalju se na server.");
+  };
+  $("#r_stop").onclick=()=>{ try{ mr.stop(); }catch(e){} };
+  $("#r_file").onchange=async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    if(S.rec || chunks.length){ msg("Već ste snimali u ovom sastanku. Audio zapis učitajte u novom sastanku."); e.target.value=""; return; }
+    if(uploaded){ msg("Audio zapis je već učitan. Za drugi zapis napravite novi sastanak."); e.target.value=""; return; }
+    $("#r_prev").innerHTML=`<p>${esc(f.name)}</p><audio controls src="${URL.createObjectURL(f)}"></audio>`;
+    try{ await store.uploadChunk(m,"upload-"+uid()+"."+extZa(f),f); uploaded=true; m.fazaSnimka="otpremljeno"; await store.save(m); msg("Zapis je otpremljen."); }catch(err){ msg("Otprema nije uspjela: "+err.message); }
+  };
+  $("#r_next").onclick=async()=>{
+    if(S.rec){ alert("Prvo završite snimanje."); return; }
+    $("#r_next").disabled=true; msg("Čekam završetak slanja snimka…");
+    await Promise.allSettled(pending);
+    if(failed && !confirm("Neki komadi snimka nisu poslani na server. Obrada će biti nepotpuna. Nastaviti svejedno?")){ $("#r_next").disabled=false; return; }
+    m.transkript=$("#r_tr").value; m.status="obrada";
+    try{ await store.save(m); }catch(e){ alert("Greška: "+e.message); $("#r_next").disabled=false; return; }
+    render();
+  };
+}
+
+function nacrtIzTranskripta(m){
+  // DEMO: bez prepoznavanja govora i bez jezičkog modela; ništa se ne izmišlja.
+  m.tacke.forEach(t=>{ if(!t.rasprava) t.rasprava = m.transkript? "[nejasno – transkript je priložen, tačka nije razvrstana]":""; });
+  return m;
+}
+function ekranObrada(m){
+  $("#main").innerHTML = zaglavljeSastanka(m)+`<h2>Obrada snimka</h2><p id="ob" class="muted">Obrada je u toku…</p><div class="actions"><button id="ob_skip" class="sec hide">Nastavi s ručnim unosom</button></div>`;
+  S.obrada = S.obrada || {};
+  if(S.obrada[m.id]) return;
+  S.obrada[m.id] = true;
+  (async()=>{
+    try{
+      if(DEMO){
+        await new Promise(r=>setTimeout(r,600));
+        nacrtIzTranskripta(m);
+        $("#ob").innerHTML = `<b>Demo:</b> prepoznavanje govora nije povezano. Napravljen je prazan nacrt iz dnevnog reda${m.transkript?" uz priloženi transkript":""}.`;
+      } else {
+        const r = await store.process(m);
+        if(r && r.minutes) Object.assign(m, r.minutes, {id:m.id,scope:m.scope});
+        $("#ob").textContent="Obrada završena. Nacrt je spreman za pregled.";
+      }
+      m.status="nacrt"; await store.save(m);
+      delete S.obrada[m.id];
+      setTimeout(render,900);
+    }catch(e){
+      delete S.obrada[m.id];
+      const el=$("#ob"); if(el){ el.innerHTML=`Obrada nije uspjela: ${esc(e.message)}`; $("#ob_skip").classList.remove("hide");
+      $("#ob_skip").onclick=async()=>{ try{ m.status="nacrt"; await store.save(m); render(); }catch(e2){ alert("Greška: "+e2.message); } }; }
+    }
+  })();
+}
+
+/* ============ PREGLED I ISPRAVKA NACRTA ============ */
+function ekranPregled(m){
+  const lock = m.status==="potvrdjen"; const d = lock?"disabled":"";
+  const jz = m.scope==="ZAJEDNICKI";
+  const ozn = (v,i,k)=> jz? `<td><select ${d} data-l="${k}.${i}.oznaka">${OZNAKE.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select></td>`:"";
+  const inp = (path,val,ph="",tip="text")=>`<input ${d} type="${tip}" data-p="${path}" value="${esc(val)}" placeholder="${esc(ph)}">`;
+  $("#main").innerHTML = zaglavljeSastanka(m)+`
+  <h2>${lock?"Potvrđeni zapisnik":"Pregled i ispravka nacrta"}</h2>
+  ${lock?`<div class="note ok">Zapisnik je potvrđen (${esc(m.potvrdio)}, ${fmtDat(m.potvrdjenoKada)}) i zaključan.</div>`:`<div class="note">Nacrt nije službeni zapisnik dok ga ovlaštena osoba ne potvrdi. Nejasna mjesta označite kao <b>[nejasno]</b>. Rok i odgovornu osobu upisujte samo ako su izričito dogovoreni.</div>`}
+  <h3>1. Osnovni podaci</h3>
+  <div class="row">
+    <div><label>Broj zapisnika</label>${inp("broj",m.broj,"npr. 01/2026")}</div>
+    <div><label>Vrsta sastanka</label><select ${d} data-p="tip">${tipoviZa(m.scope).map(t=>`<option ${t===m.tip?"selected":""}>${esc(t)}</option>`).join("")}</select></div>
+    <div><label>Tema</label>${inp("tema",m.tema)}</div>
+    <div><label>Mjesto</label>${inp("mjesto",m.mjesto)}</div>
+    <div><label>Datum</label>${inp("datum",m.datum,"","date")}</div>
+    <div><label>Početak</label>${inp("pocetak",m.pocetak,"","time")}</div>
+    <div><label>Završetak</label>${inp("kraj",m.kraj,"","time")}</div>
+    <div><label>Povjerljivost</label><select ${d} data-p="povjerljivost">${["Opći","Povjerljiv","Strogo povjerljivo"].map(t=>`<option ${t===m.povjerljivost?"selected":""}>${t}</option>`).join("")}</select></div>
+  </div>
+  <p class="muted">Snimanje: ${m.snimano?`da, uz saglasnost (evidentirao/la ${esc(m.saglasnost.dao)}, ${m.saglasnost.kada?new Date(m.saglasnost.kada).toLocaleString("bs-Latn-BA"):""})`:"ne"}</p>
+  <h3>2. Prisutni</h3>
+  <table><tr><th>R.br.</th><th>Ime i prezime</th><th>Funkcija / uloga</th><th>Napomena</th></tr>
+  ${m.prisutni.map((p,i)=>`<tr><td>${i+1}</td><td>${inp(`prisutni.${i}.ime`,p.ime)}</td><td>${inp(`prisutni.${i}.uloga`,p.uloga)}</td><td>${inp(`prisutni.${i}.napomena`,p.napomena)}</td></tr>`).join("")}</table>
+  ${lock?"":`<button class="sec" data-add="prisutni">+ osoba</button>`}
+  <div class="row"><div><label>Opravdano odsutni</label>${inp("odsutniOp",m.odsutniOp)}</div><div><label>Neopravdano odsutni</label>${inp("odsutniNeop",m.odsutniNeop)}</div><div><label>Učesnici bez prava glasa</label>${inp("bezGlasa",m.bezGlasa)}</div></div>
+  <div class="row"><div><label>Kvorum</label><select ${d} data-p="kvorum">${["Ostvaren","Nije ostvaren","Nije potreban"].map(t=>`<option ${t===m.kvorum?"selected":""}>${t}</option>`).join("")}</select></div><div><label>Predsjedavajući</label>${inp("predsjedavajuci",m.predsjedavajuci)}</div><div><label>Zapisničar</label>${inp("zapisnicar",m.zapisnicar)}</div></div>
+  <h3>3. Tok sastanka po tačkama</h3>
+  ${m.tacke.map((t,i)=>`<div class="card"><b>Ad ${i+1}.</b>
+    <div class="row"><div><label>Naziv tačke</label>${inp(`tacke.${i}.naslov`,t.naslov)}</div>${jz?`<div><label>Ustanova</label><select ${d} data-p="tacke.${i}.oznaka">${OZNAKE.map(o=>`<option ${o===t.oznaka?"selected":""}>${o}</option>`).join("")}</select></div>`:""}</div>
+    <label>Rasprava</label><textarea ${d} data-p="tacke.${i}.rasprava">${esc(t.rasprava)}</textarea>
+    <div class="row"><div><label>Za</label>${inp(`tacke.${i}.za`,t.za)}</div><div><label>Protiv</label>${inp(`tacke.${i}.protiv`,t.protiv)}</div><div><label>Suzdržani</label>${inp(`tacke.${i}.suzdrzani`,t.suzdrzani)}</div>
+    <div><label>Način</label><select ${d} data-p="tacke.${i}.nacin">${["Javno","Tajno","Bez glasanja"].map(o=>`<option ${o===t.nacin?"selected":""}>${o}</option>`).join("")}</select></div></div>
+    <label>Zaključak</label><textarea ${d} data-p="tacke.${i}.zakljucak" style="min-height:60px">${esc(t.zakljucak)}</textarea>
+    <label>Izdvojeno mišljenje</label>${inp(`tacke.${i}.izdvojeno`,t.izdvojeno)}</div>`).join("")}
+  ${lock?"":`<button class="sec" data-add="tacke">+ tačka</button>`}
+  <h3>4. Zadaci i dogovori</h3>
+  <table><tr><th>R.br.</th><th>Zadatak / dogovor</th><th>Odgovorna osoba</th><th>Krajnji rok</th><th>Status</th>${jz?"<th>Ustanova</th>":""}</tr>
+  ${m.zadaci.map((z,i)=>`<tr><td>${i+1}</td><td>${inp(`zadaci.${i}.zadatak`,z.zadatak)}</td><td>${inp(`zadaci.${i}.odgovorna`,z.odgovorna)}</td><td>${inp(`zadaci.${i}.rok`,z.rok,"","date")}</td>
+   <td><select ${d} data-p="zadaci.${i}.status">${["Otvoren","U toku","Završen"].map(o=>`<option ${o===z.status?"selected":""}>${o}</option>`).join("")}</select></td>${jz?`<td><select ${d} data-p="zadaci.${i}.oznaka">${OZNAKE.map(o=>`<option ${o===z.oznaka?"selected":""}>${o}</option>`).join("")}</select></td>`:""}</tr>`).join("")}</table>
+  ${lock?"":`<button class="sec" data-add="zadaci">+ zadatak</button>`}
+  <div class="row"><div><label>Prilozi</label>${inp("prilozi",m.prilozi)}</div><div><label>Naredni sastanak</label>${inp("naredni",m.naredni)}</div></div>
+  ${m.transkript?`<h3>Transkript (radni materijal)</h3><textarea disabled style="min-height:80px">${esc(m.transkript)}</textarea>`:""}
+  <div class="actions">
+    ${lock?"":`<button id="p_save" class="sec">Sačuvaj nacrt</button><button id="p_ok">Potvrdi zapisnik</button>`}
+    <button id="p_docx" class="sec">Preuzmi DOCX (uredivo)</button>
+    ${lock&&!DEMO&&m.snimano?`<button id="p_purge" class="sec">Obriši snimak</button>`:""}
+    <button id="p_print" class="sec">Ispis / PDF</button>
+    ${jz&&lock?`<button class="sec" id="p_ix1">Izvod za IMH (PDF)</button><button class="sec" id="p_ix2">Izvod za IDSS (PDF)</button><button class="sec" id="p_dx1">Izvod za IMH (DOCX)</button><button class="sec" id="p_dx2">Izvod za IDSS (DOCX)</button>`:""}
+    <button id="p_back" class="sec">Nazad na arhivu</button>
+  </div>`;
+  const setPath=(o,p,v)=>{ const k=p.split("."); let c=o; for(let i=0;i<k.length-1;i++) c=c[k[i]]; c[k[k.length-1]]=v; };
+  const sakupi=()=>{ document.querySelectorAll("#main [data-p]").forEach(e=>setPath(m,e.dataset.p,e.value)); };
+  document.querySelectorAll("#main [data-add]").forEach(b=>b.onclick=()=>{
+    sakupi(); const def = jz?"zajedničko":m.scope;
+    if(b.dataset.add==="prisutni") m.prisutni.push({ime:"",uloga:"",napomena:""});
+    if(b.dataset.add==="tacke") m.tacke.push({naslov:"",oznaka:def,rasprava:"",za:"",protiv:"",suzdrzani:"",nacin:"Bez glasanja",zakljucak:"",izdvojeno:""});
+    if(b.dataset.add==="zadaci") m.zadaci.push({zadatak:"",odgovorna:"",rok:"",status:"Otvoren",oznaka:def});
+    ekranPregled(m);
+  });
+  if(!lock){
+    $("#p_save").onclick=async()=>{ sakupi(); await store.save(m); alert("Nacrt je sačuvan."); };
+    $("#p_ok").onclick=async()=>{
+      sakupi();
+      const problemi=[];
+      m.zadaci.filter(z=>z.zadatak.trim()).forEach((z,i)=>{ if(!z.odgovorna.trim()) problemi.push(`Zadatak ${i+1}: nema odgovorne osobe`); if(!z.rok) problemi.push(`Zadatak ${i+1}: nema krajnjeg roka`); });
+      if(!m.predsjedavajuci.trim()) problemi.push("Nije upisan predsjedavajući");
+      if(!m.zapisnicar.trim()) problemi.push("Nije upisan zapisničar");
+      if(JSON.stringify(m).includes("[nejasno")) problemi.push("U zapisniku su još označena mjesta [nejasno]");
+      if(problemi.length && !confirm("Prije potvrde provjerite:\n\n- "+problemi.join("\n- ")+"\n\nPotvrditi svejedno?")) return;
+      if(!confirm("Potvrditi zapisnik? Nakon potvrde se više ne može mijenjati.")) return;
+      m.status="potvrdjen"; m.potvrdio=S.user.ime||S.user.email; m.potvrdjenoKada=new Date().toISOString();
+      try{ await store.save(m); }catch(e){ m.status="nacrt"; alert("Potvrda nije uspjela: "+e.message); return; }
+      if(!DEMO && m.snimano){ try{ await store.purge(m); }catch(e){ alert("Zapisnik je potvrđen, ali snimak nije obrisan: "+e.message+"\nObrišite ga dugmetom „Obriši snimak“ u potvrđenom zapisniku."); } }
+      render();
+    };
+  }
+  const dx = izv => async()=>{ sakupi(); if(!lock) await store.save(m);
+    try{ const blob = await DX.izvezi(m, izv, USTANOVE, TPL, KOD_OBRASCA, IZDANJE); preuzmi(blob, nazivFajla(m, izv)); }catch(e){ alert("DOCX izvoz nije uspio: "+e.message); } };
+  $("#p_docx").onclick=dx(null);
+  if($("#p_purge")) $("#p_purge").onclick=async()=>{ try{ const r=await store.purge(m); alert("Snimak je obrisan"+(r&&r.obrisano!=null?" ("+r.obrisano+" fajl.)":"")+"."); }catch(e){ alert("Brisanje nije uspjelo: "+e.message); } };
+  $("#p_print").onclick=()=>ispis(m);
+  if(jz&&lock){ $("#p_ix1").onclick=()=>ispis(m,"IMH"); $("#p_ix2").onclick=()=>ispis(m,"IDSS"); $("#p_dx1").onclick=dx("IMH"); $("#p_dx2").onclick=dx("IDSS"); }
+  $("#p_back").onclick=()=>{ S.cur=null; S.tab="arhiva"; render(); };
+}
+
+/*@@TPL@@*/
+/*@@DX@@*/
+function preuzmi(blob, ime){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=ime; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500); }
+function nazivFajla(m, izv){
+  const slug = s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[đĐ]/g,"d").replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,40);
+  return `Zapisnik_${m.scope}${izv?"_izvod_"+izv:""}_${(m.datum||"").slice(0,10)}_${slug(m.tema)}${m.status==="potvrdjen"?"":"_NACRT"}.docx`;
+}
+
+/* ============ ISPIS (obrazac QP 10.ZS-01) ============ */
+function ispis(m, izvod){
+  const A = izvod? USTANOVE[izvod].boja : USTANOVE[m.scope==="ZAJEDNICKI"?"IDSS":m.scope].boja;
+  const naziv = izvod? USTANOVE[izvod].naziv : USTANOVE[m.scope].naziv;
+  const ok = o => !izvod || o==="zajedničko" || o===izvod;
+  const tacke=m.tacke.filter(t=>ok(t.oznaka)), zadaci=m.zadaci.filter(z=>z.zadatak&&ok(z.oznaka));
+  document.documentElement.style.setProperty("--acc",A);
+  $("#print").innerHTML = `
+  <p>Broj zapisnika: ${esc(m.broj||"____")} &nbsp; Sarajevo, ${fmtDat(m.datum)}</p>
+  <h1 style="text-align:center;color:${A};letter-spacing:3px;margin:6px 0">ZAPISNIK SA SASTANKA${izvod?" — IZVOD":""}</h1>
+  <p style="text-align:center;font-style:italic;font-size:12px">${esc(naziv)}</p>
+  <table><tr><th style="width:22%">Vrsta sastanka</th><td colspan="3">${esc(m.tip)}</td></tr>
+  <tr><th>Tema</th><td colspan="3">${esc(m.tema)}</td></tr>
+  <tr><th>Mjesto</th><td>${esc(m.mjesto)}</td><th style="width:16%">Datum</th><td>${fmtDat(m.datum)}</td></tr>
+  <tr><th>Početak</th><td>${esc(m.pocetak)}</td><th>Završetak</th><td>${esc(m.kraj)}</td></tr>
+  <tr><th>Povjerljivost</th><td>${esc(m.povjerljivost)}</td><th>Snimanje</th><td>${m.snimano?"da, uz saglasnost":"ne"}</td></tr></table>
+  <h3>Prisutni</h3><table><tr><th>R.br.</th><th>Ime i prezime</th><th>Funkcija</th><th>Napomena</th></tr>${m.prisutni.filter(p=>p.ime).map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.ime)}</td><td>${esc(p.uloga)}</td><td>${esc(p.napomena)}</td></tr>`).join("")}</table>
+  <p style="font-size:12px">Opravdano odsutni: ${esc(m.odsutniOp)||"—"} · Neopravdano odsutni: ${esc(m.odsutniNeop)||"—"} · Bez prava glasa: ${esc(m.bezGlasa)||"—"}<br>Kvorum: ${esc(m.kvorum)} · Predsjedavajući: ${esc(m.predsjedavajuci)} · Zapisničar: ${esc(m.zapisnicar)}</p>
+  <h3>Dnevni red i tok sastanka</h3>
+  ${tacke.map((t,i)=>`<table style="page-break-inside:avoid"><tr><th colspan="2">Ad ${i+1}. ${esc(t.naslov)}</th></tr>
+    <tr><td style="width:22%"><b>Rasprava</b></td><td>${esc(t.rasprava).replace(/\n/g,"<br>")}</td></tr>
+    <tr><td><b>Glasanje</b></td><td>Za: ${esc(t.za)||"—"} · Protiv: ${esc(t.protiv)||"—"} · Suzdržani: ${esc(t.suzdrzani)||"—"} (${esc(t.nacin)})</td></tr>
+    <tr><td><b>Zaključak</b></td><td>${esc(t.zakljucak).replace(/\n/g,"<br>")}</td></tr>
+    <tr><td><b>Izdvojeno mišljenje</b></td><td>${esc(t.izdvojeno)}</td></tr></table>`).join("")}
+  <h3>Zadaci i dogovori</h3><table><tr><th>R.br.</th><th>Zadatak</th><th>Odgovorna osoba</th><th>Krajnji rok</th><th>Status</th></tr>${zadaci.map((z,i)=>`<tr><td>${i+1}</td><td>${esc(z.zadatak)}</td><td>${esc(z.odgovorna)}</td><td>${fmtDat(z.rok)}</td><td>${esc(z.status)}</td></tr>`).join("")}</table>
+  <p style="font-size:12px">Prilozi: ${esc(m.prilozi)||"—"} · Naredni sastanak: ${esc(m.naredni)||"—"}</p>
+  <table><tr><th style="width:22%">Status</th><td>${m.status==="potvrdjen"?"Potvrđen":"NACRT"}</td><th style="width:22%">Potvrdio</th><td>${esc(m.potvrdio||"")} ${m.potvrdjenoKada?fmtDat(m.potvrdjenoKada):""}</td></tr>
+  <tr><th>Zapisničar (potpis)</th><td style="height:50px"></td><th>Predsjedavajući (potpis)</th><td></td></tr></table>
+  <div class="foot"><b style="color:${A}">${KOD_OBRASCA}</b> | Zapisnik sa sastanka | Izdanje ${IZDANJE}<br>${esc(naziv)}</div>`;
+  window.print();
+}
+
+/* ============ ARHIVA ============ */
+function arhiva(){
+  const f = S.filter||"sve";
+  const lista = S.meetings.filter(m=>f==="sve"||m.scope===f);
+  $("#main").innerHTML = `<h2>Arhiva zapisnika</h2>
+  <div class="row" style="max-width:400px"><div><label>Prikaži</label><select id="a_f"><option value="sve">Sve</option><option value="IDSS">IDSS</option><option value="IMH">IMH</option><option value="ZAJEDNICKI">Zajednički sastanci uprave</option></select></div></div>
+  ${lista.length? lista.map(m=>`<div class="card"><span class="badge b-${m.scope}">${m.scope==="ZAJEDNICKI"?"Zajednički":m.scope}</span> <span class="badge st-${m.status}">${statusTekst(m.status)}</span>
+    <b> ${esc(m.tema)}</b><br><span class="muted">${esc(m.tip)} · ${fmtDat(m.datum)} · ${esc(m.povjerljivost)}</span>
+    <div class="actions"><button class="sec" data-o="${m.id}">Otvori</button>${["saglasnost","snimanje","obrada"].includes(m.status)?"":""}</div></div>`).join("") : `<p class="muted">Nema zapisnika.</p>`}`;
+  $("#a_f").value=f; $("#a_f").onchange=e=>{ S.filter=e.target.value; arhiva(); };
+  document.querySelectorAll("[data-o]").forEach(b=>b.onclick=()=>{ S.cur=b.dataset.o; render(); });
+}
+
+function upute(){
+  $("#main").innerHTML = `<h2>Upute</h2>
+  <div class="card"><b>Tok:</b> priprema → saglasnost → snimanje (ili otprema audija) → obrada → pregled i ispravka → potvrda → arhiva i ispis.</div>
+  <div class="card"><b>Zajednički sastanak uprave:</b> uz svaku tačku i zadatak bira se ustanova (IMH, IDSS ili zajedničko). Nakon potvrde moguće je ispisati izvod za IMH ili za IDSS; izvod sadrži samo tačke i zadatke te ustanove i zajedničke.</div>
+  <div class="card"><b>Povjerljivost:</b> u Supabase načinu pristup određuju uloge po ustanovi (pravila pristupa u bazi). U DEMO načinu ta zaštita ne postoji.</div>
+  <div class="card"><b>Ispis:</b> dugme „Ispis / PDF“ otvara ispis obrasca QP 10.ZS-01; u dijalogu odaberite „Sačuvaj kao PDF“.</div>
+  <div class="card"><b>Način rada:</b> ${DEMO?"DEMO (podaci su samo u ovom pregledniku)":"povezano sa Supabase"}.</div>`;
+}
+
+window.addEventListener("beforeunload",e=>{ if(S.rec){ e.preventDefault(); e.returnValue=""; } });
+init().catch(e=>{ $("#main").innerHTML=`<div class="note">Greška pri pokretanju: ${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>

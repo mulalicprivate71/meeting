@@ -1,0 +1,33 @@
+const { chromium } = require('playwright');
+(async()=>{
+  const b = await chromium.launch({args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']});
+  const ctx = await b.newContext({permissions:['microphone'], viewport:{width:1100,height:900}});
+  const p = await ctx.newPage();
+  const errs=[]; p.on('pageerror',e=>errs.push('PAGEERR '+e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE '+m.text()); });
+  p.on('dialog',d=>{ console.log('DIALOG:',d.message().slice(0,120).replace(/\n/g,' | ')); d.accept(); });
+  await p.goto('file:///tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/app/index.html');
+  await p.fill('#em','test@idss.ba'); await p.fill('#im','Test Direktor'); await p.click('#go');
+  await p.selectOption('#n_sc','ZAJEDNICKI');
+  await p.fill('#n_tema','Planiranje nove školske godine'); await p.fill('#n_mj','Zbornica'); await p.fill('#n_pred','Direktor');
+  await p.fill('#n_uc','Prvi Učesnik — direktor\nDrugi Učesnik — pedagog');
+  await p.fill('#n_dn','Budžet [IMH]\nNastavni plan [IDSS]\nZajednička nabavka');
+  await p.click('#n_go');
+  await p.check('#s_da'); await p.click('#s_sn');
+  await p.click('#r_start'); await p.waitForTimeout(2500); await p.click('#r_stop'); await p.waitForTimeout(800);
+  console.log('PREV:', (await p.textContent('#r_prev')).slice(0,80));
+  await p.fill('#r_tr','Razgovor o budžetu...'); await p.click('#r_next');
+  await p.waitForSelector('#p_ok',{timeout:8000});
+  await p.fill('[data-p="zadaci.0.zadatak"]','Pripremiti budžet'); 
+  await p.screenshot({path:'draft.png',fullPage:true});
+  await p.click('#p_ok'); await p.waitForSelector('#p_ix1');
+  console.log('STATUS:', await p.textContent('.badge.st-potvrdjen'));
+  // izvod IMH
+  await p.evaluate(()=>{window.print=()=>{};});
+  await p.click('#p_ix1');
+  const html = await p.innerHTML('#print');
+  console.log('IZVOD IMH sadrži Budžet:', html.includes('Budžet'), '| Nastavni plan:', html.includes('Nastavni plan'), '| Zajednička:', html.includes('Zajednička nabavka'), '| IZVOD naslov:', html.includes('IZVOD'));
+  await p.click('#p_back'); 
+  console.log('ARHIVA:', (await p.textContent('#main')).replace(/\s+/g,' ').slice(0,200));
+  console.log('ERRS:', errs);
+  await b.close();
+})();

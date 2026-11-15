@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const base='/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/test/';
+const base=__dirname+'/';
 (async()=>{
  const b=await chromium.launch({args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']});
  const ctx=await b.newContext({permissions:['microphone']}); const p=await ctx.newPage();

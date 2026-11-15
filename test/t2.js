@@ -6,8 +6,8 @@ const { chromium } = require('playwright');
   const errs=[]; p.on('pageerror',e=>errs.push('PAGEERR '+e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE '+m.text()); });
   p.on('dialog',d=>d.accept());
   // JSZip lokalno (u sandboxu nema pristupa CDN-u)
-  await p.route('**/jszip.min.js', r=>r.fulfill({path:'/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/test/jszip.min.js', contentType:'application/javascript'}));
-  await p.goto('file:///tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/app/index.html');
+  await p.route('**/jszip.min.js', r=>r.fulfill({path:require('path').resolve(__dirname,'../app/vendor/jszip.min.js'), contentType:'application/javascript'}));
+  await p.goto('file://'+require('path').resolve(__dirname,'../app/index.html'));
   await p.fill('#em','t@idss.ba'); await p.fill('#im','Test Direktor'); await p.click('#go');
   async function novi(sc, tema, dn){
     await p.click('nav.tabs button[data-k="novi"]');

@@ -1,2 +1,4 @@
 node_modules/
 *.bak.html
+build/work/
+build/tpl/

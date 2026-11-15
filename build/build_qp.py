@@ -114,7 +114,7 @@ H('10. PRILOZI')
 BL(['Prilog 1: Obrazac QP 10.ZS-01 – Zapisnik sa sastanka (varijante IDSS i IMH)','Prilog 2: Obrazac QP 10.ZS-02 – Zapisnik sa zajedničkog sastanka uprave'])
 
 # izgradnja dokumenta
-d = f"{B.OUT}/qp"
+d = f"{B.WORK}/qp"
 if os.path.exists(d): shutil.rmtree(d)
 shutil.copytree(f"{B.SRC}/{cfg['src']}", d)
 x = open(f'{d}/word/document.xml', encoding='utf8').read()
@@ -129,7 +129,7 @@ open(fp, 'w', encoding='utf8').write(B.footer_xml(c2, orig))
 ct = f'{d}/[Content_Types].xml'
 ct_orig = open(ct, encoding='utf8').read()
 open(ct, 'w', encoding='utf8').write(ct_orig.replace('wordprocessingml.template.main+xml', 'wordprocessingml.document.main+xml'))
-out = f'{B.OUT}/QP_10_Sastanci_i_zapisnici_sa_sastanaka.docx'
+out = f"{B.ROOT}/docs/QP_10_Sastanci_i_zapisnici_sa_sastanaka.docx"
 if os.path.exists(out): os.remove(out)
 subprocess.check_call(f'cd "{d}" && zip -qXrD "{out}" .', shell=True)
 print(out)

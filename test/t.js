@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
   const p = await ctx.newPage();
   const errs=[]; p.on('pageerror',e=>errs.push('PAGEERR '+e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE '+m.text()); });
   p.on('dialog',d=>{ console.log('DIALOG:',d.message().slice(0,120).replace(/\n/g,' | ')); d.accept(); });
-  await p.goto('file:///tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/app/index.html');
+  await p.goto('file://'+require('path').resolve(__dirname,'../app/index.html'));
   await p.fill('#em','test@idss.ba'); await p.fill('#im','Test Direktor'); await p.click('#go');
   await p.selectOption('#n_sc','ZAJEDNICKI');
   await p.fill('#n_tema','Planiranje nove školske godine'); await p.fill('#n_mj','Zbornica'); await p.fill('#n_pred','Direktor');

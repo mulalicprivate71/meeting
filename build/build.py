@@ -1,8 +1,11 @@
+import os
+ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import re, shutil, os, sys, subprocess
 from xml.sax.saxutils import escape
 
-SRC = '/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/att'
-OUT = '/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/build'
+SRC = os.path.join(ROOT,'build','att')
+OUT = os.path.join(ROOT,"forms")
+WORK = os.path.join(ROOT,"build","work")
 
 CODE = 'QP 10.ZS-01'
 FORM = 'Zapisnik sa sastanka'
@@ -295,7 +298,7 @@ def footer_xml(cfg, orig):
 
 def build(key):
     cfg = CFG[key]
-    d = f"{OUT}/{key}"
+    d = f"{WORK}/{key}"
     if os.path.exists(d): shutil.rmtree(d)
     shutil.copytree(f"{SRC}/{cfg['src']}", d)
     docp = f'{d}/word/document.xml'

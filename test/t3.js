@@ -1,12 +1,12 @@
 const { chromium } = require('playwright');
-const base='/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/';
+const base=require('path').resolve(__dirname,'..')+'/';
 (async()=>{
   const b = await chromium.launch();
   const ctx = await b.newContext({acceptDownloads:true, viewport:{width:375,height:800}});
   const p = await ctx.newPage();
   const errs=[]; p.on('pageerror',e=>errs.push('PAGEERR '+e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push('CONSOLE '+m.text()); });
   const dlg=[]; p.on('dialog',d=>{dlg.push(d.message().slice(0,80)); d.accept();});
-  await p.goto('file://'+base+'app/index.html');
+  await p.goto('file://'+base+'../app/index.html');
   const X='<img src=x onerror="window.__xss=1"><script>window.__xss=2</script>"\'&amp;';
   await p.fill('#em','t@idss.ba'); await p.fill('#im',X); await p.click('#go');
   await p.click('nav.tabs button[data-k="novi"]');

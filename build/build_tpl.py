@@ -1,6 +1,8 @@
+import os
+ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import os, re, shutil, subprocess, base64, sys
-SRC='/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/att'
-OUT='/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/build/tpl'
+SRC=os.path.join(ROOT,'build','att')
+OUT=os.path.join(ROOT,'build','tpl')
 os.makedirs(OUT, exist_ok=True)
 res={}
 for key,src,top in [('IDSS','9905a83a',1350),('IMH','45932168',None)]:
@@ -23,11 +25,11 @@ for key,src,top in [('IDSS','9905a83a',1350),('IMH','45932168',None)]:
     subprocess.check_call(f'cd "{d}" && zip -qXrD "{out}" .', shell=True)
     res[key]=base64.b64encode(open(out,'rb').read()).decode()
     print(key, os.path.getsize(out))
-APP='/tmp/claude-0/-home-claude/3d2769b0-6fdb-5a6a-9117-3121c5ab892c/scratchpad/app'
+APP=os.path.join(ROOT,'app')
 s=open(f'{APP}/index.src.html',encoding='utf8').read()
 dx=open(f'{APP}/dx.js',encoding='utf8').read()
 tpl='const TPL = {IDSS:"%s", IMH:"%s"};'%(res['IDSS'],res['IMH'])
-jz=open('/opt/node-tools/node_modules/jszip/dist/jszip.min.js',encoding='utf8').read()
+jz=open(os.path.join(ROOT,'app','vendor','jszip.min.js'),encoding='utf8').read()
 assert '</script' not in jz
 s=s.replace('/*@@JSZIP@@*/',lambda: None) if False else s.replace('/*@@JSZIP@@*/',jz)
 s=s.replace('/*@@TPL@@*/',tpl).replace('/*@@DX@@*/',dx)

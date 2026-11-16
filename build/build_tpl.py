@@ -32,6 +32,8 @@ tpl='const TPL = {IDSS:"%s", IMH:"%s"};'%(res['IDSS'],res['IMH'])
 jz=open(os.path.join(ROOT,'app','vendor','jszip.min.js'),encoding='utf8').read()
 assert '</script' not in jz
 s=s.replace('/*@@JSZIP@@*/',lambda: None) if False else s.replace('/*@@JSZIP@@*/',jz)
+gm=open(os.path.join(ROOT,'app','gemini-klijent.js'),encoding='utf8').read()
+s=s.replace('/*@@GM@@*/',gm)
 s=s.replace('/*@@TPL@@*/',tpl).replace('/*@@DX@@*/',dx)
 open(f'{APP}/index.html','w',encoding='utf8').write(s)
 print('index.html', len(s))

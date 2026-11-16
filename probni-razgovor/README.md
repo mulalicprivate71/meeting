@@ -13,7 +13,7 @@ Izmišljeni sastanak (osobe i događaji su izmišljeni). Služi za provjeru cije
 | Predsjedavajući | Tarik Mehić |
 | Zapisničar | Selma Begović |
 | Datum / vrijeme | 16. 11. 2026., 10:05–10:52 |
-| Povjerljivost | Povjerljivo |
+| Povjerljivost | **Opći** (jedino tako se šalje besplatnom Geminiju; sastanak je izmišljen, bez ličnih podataka) |
 
 **Učesnici (jedan red = jedna osoba):**
 ```

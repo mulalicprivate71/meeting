@@ -1,51 +1,55 @@
-# Zapisnici sastanaka — prototip (Firebase + Gemini)
+# Zapisnici sastanaka — prototip (Firebase besplatni plan + Gemini)
+
+Sve je potpuno besplatno: Firebase **Spark** plan (prijava, baza, hosting; bez bankovne kartice) i besplatni Gemini ključevi.
+Nema Cloud Functions ni Storage (to traži plaćeni plan). Snimak ostaje samo na računaru; u Google ide samo za obradu.
 
 Sadržaj repozitorija:
-- `app/index.html` — aplikacija (jedan fajl; sadrži memorandume IDSS i IMH za DOCX izvoz). Izvor je `app/index.src.html`.
-- `firestore.rules`, `storage.rules`, `firebase.json` — pravila pristupa i postavke Firebase projekta
-- `functions/` — serverske funkcije `processMeeting` i `purgeRecording` (Gemini, rotacija ključeva)
-- `tools/add-member.js` — dodjela uloga korisnicima
+- `app/index.html` — aplikacija (jedan fajl; sadrži memorandume IDSS i IMH). Izvor: `app/index.src.html`, `app/gemini-klijent.js`, `app/dx.js`.
+- `firestore.rules`, `firebase.json` — pravila pristupa i postavke objave
 - `probni-razgovor/` — izmišljeni sastanak za probu i očekivani rezultat
 
 ## 1. Isprobavanje odmah (DEMO)
-Otvorite `app/index.html` u pregledniku (Chrome, Edge ili Safari), prijavite se bilo kojom e-poštom i imenom.
-Podaci ostaju samo u tom pregledniku, nema zaštite pristupa i nema prepoznavanja govora (nacrt se pravi iz dnevnog reda,
-ništa se ne izmišlja). DOCX izvoz radi i bez interneta.
+Dvaput kliknite `app\index.html`. Prijavite se bilo kojom e-poštom i imenom. Podaci ostaju samo u tom pregledniku, nema zaštite
+pristupa i nema prepoznavanja govora (nacrt se pravi iz dnevnog reda, ništa se ne izmišlja). DOCX izvoz radi i bez interneta.
 
-## 2. Povezivanje s Firebase (stvarni rad)
-Potrebno: Google račun, Node.js 20+, `npm i -g firebase-tools`.
+## 2. Pravi rad (Firebase Spark)
+Potrebno: Google račun, Node.js (LTS) i u Komandnoj liniji (cmd): `npm install -g firebase-tools`.
 
-1. U Firebase konzoli napravite NOVI projekat (odvojen od aplikacije IDSS Pedagog) i **pređite na plan Blaze** (plaćanje po potrošnji).
-   Blaze je obavezan za Cloud Functions i za novu pohranu (Storage); za ovaj obim potrošnja je mala, a možete postaviti i budžetsko upozorenje.
-2. Uključite: **Authentication** (način prijave: e-pošta/lozinka), **Firestore** (izaberite europsku lokaciju, npr. `eur3`; lokacija se kasnije ne može mijenjati) i **Storage** (također europska lokacija).
-3. U mapi projekta: `firebase login`, pa kopirajte `.firebaserc.example` u `.firebaserc` i upišite ID projekta.
-4. Ključevi za Gemini (svih 5, odvojeni zarezom): `firebase functions:secrets:set GEMINI_API_KEYS`
-   (opcionalno naziv modela: u `functions/.env` red `GEMINI_MODEL=...`; zadano `gemini-2.5-flash`, važeći naziv provjeriti u Googleovoj dokumentaciji).
-5. `cd functions && npm install && cd ..`, zatim `firebase deploy` (objavljuje pravila, funkcije i aplikaciju).
-   Pri prvom objavljivanju pravila za Storage konzola može tražiti odobrenje da Storage čita Firestore — odobrite.
-6. Dodajte korisnike u Authentication (konzola), pa im dodijelite uloge:
-   `node tools/add-member.js direktor@idss.ba "Ime Prezime" IMH=direktor IDSS=direktor`
-   (uloge: direktor / uprava / voditelj / clan). Zapisnike potvrđuje samo `direktor` (za zajednički sastanak direktor obje ustanove).
-   Zajedničke sastanke vide samo osobe s ulogom `uprava` ili `direktor` u OBJE ustanove. Bez dodijeljene uloge pristup nije moguć.
-7. Aplikacija je tada na adresi `https://<projekat>.web.app` (HTTPS je potreban za mikrofon); postavke Firebase učitava sama.
-8. Sastanci označeni „Strogo povjerljivo“ se po zadanim postavkama NE šalju Googleu na obradu (zapisnik se piše ručno).
-   Ako Direktor odluči drukčije: u `functions/.env` upišite `ALLOW_CONFIDENTIAL_EXTERNAL=true` i ponovo objavite funkcije.
+1. Na console.firebase.google.com napravite NOVI projekat (ostanite na planu **Spark**; ne uključujte Blaze). Google Analytics nije potreban.
+2. Uključite **Authentication** (način prijave: e-pošta/lozinka) i **Firestore** (europska lokacija, npr. `eur3`; kasnije se ne može mijenjati; „production mode“).
+   Storage i Functions NE uključujte.
+3. Dodajte web aplikaciju (ikona `</>` u Project settings) i zapišite ID projekta.
+4. U mapi projekta: `firebase login`, pa `copy .firebaserc.example .firebaserc` i u `.firebaserc` upišite ID projekta.
+5. `firebase deploy` (objavljuje pravila i aplikaciju). Adresa: `https://<projekat>.web.app` (HTTPS je potreban za mikrofon; postavke se učitavaju same).
+6. U konzoli (Authentication) dodajte korisnike. Zatim u Firestoreu (Data) napravite:
+   - zbirku `memberships`: dokument s ID-jem = UID korisnika, polja (tekst): `IMH` = `direktor`, `IDSS` = `direktor`, `ime` = ime i prezime.
+     Uloge: `direktor` | `uprava` | `voditelj` | `clan`. Zapisnike potvrđuje samo `direktor` (za zajednički sastanak direktor obje ustanove).
+     Zajedničke sastanke vide samo `uprava` ili `direktor` u OBJE ustanove. Bez dokumenta u `memberships` pristup nije moguć.
+   - zbirku `config`, dokument `gemini`: polje `keys` (tekst) = svih 5 ključeva odvojenih zarezom. Opcionalno: `model` (zadano `gemini-2.5-flash`; važeći naziv provjeriti u Googleovoj dokumentaciji) i `allowConf` (logička vrijednost, zadano nije postavljeno = povjerljivi sastanci se ne šalju).
 
 ### Rotacija Gemini ključeva
-Funkcija uzima ključeve redom (round-robin). Ako ključ vrati grešku zbog ograničenja (429) ili grešku servera, odmara se 15–60 sekundi i
-poziv se ponavlja idućim ključem; neispravan ključ se isključuje. Ključevi se čuvaju kao tajna (Secret Manager) i nikad ne ulaze u dnevnik.
-Napomena: ključevi iz istog Google Cloud projekta dijele isto ograničenje, a besplatni nivo može koristiti podatke za poboljšanje modela;
-za snimke sastanaka koristite plaćeni nalog i pročitajte Googleove uslove.
+Aplikacija koristi ključeve redom. Ako ključ vrati ograničenje (429) ili grešku servera, odmara se 15–60 sekundi i poziv ide idućim ključem; neispravan ključ se isključuje.
+**Sigurnosna napomena:** ključevi se čitaju u pregledniku, pa ih mogu vidjeti osobe s ulogom `direktor` ili `uprava`. Ako neko takav ode, zamijenite ključeve.
+Ključevi iz istog Google projekta dijele isto ograničenje.
 
-## 3. Šta je provjereno, a šta nije
-Provjereno automatskim testovima (DEMO i simulirani Firebase klijent): prijava, uloge, priprema, saglasnost, snimanje, obrada,
-potvrda kroz transakciju (samo dozvoljeni prelazi statusa), brisanje snimka nakon potvrde, zaključavanje, konflikt izmjena,
-DOCX izvoz (IDSS, IMH, zajednički, izvodi), zlonamjerni unos, veliki podaci, telefonski ekran, logika rotacije ključeva.
-**Nije provjereno:** pravila `firestore.rules` i `storage.rules` (nisu pokretana u Firebase emulatoru), objavljivanje i rad funkcija,
-stvarni Gemini (prepoznavanje bosanskog; otprema duže od 14 MB preko Files API; **prihvata li Gemini format `audio/webm` koji snima Chrome** — ako odbije, treba snimati u drugom formatu ili prekodirati; to je prva stvar za probu s probnim razgovorom), rad na iPhoneu s zaključanim ekranom,
-otvaranje DOCX u samom Wordu.
+## 3. Privatnost — važno
+Prema Googleovim uslovima, kod BESPLATNOG Geminija (izvan EEA, Švicarske i UK) Google može koristiti poslani sadržaj za razvoj svojih proizvoda, a ljudi ga mogu pročitati;
+uslovi kažu da se ne šalju osjetljivi, povjerljivi ni lični podaci. Zato: aplikacija šalje samo sastanke označene kao „Opći“ i prije svakog slanja traži potvrdu;
+povjerljivi sastanci se pišu ručno. Za ostale sastanke s ličnim podacima treba ili plaćeni nalog (Google tada ne koristi sadržaj, uz ugovor o obradi) ili ručno pisanje.
 
-## 4. Poznata ograničenja
-- Snimci do ~100 MB (oko 7 sati pri zadanom kvalitetu); duži sastanci traže dijeljenje.
+## 4. Gdje je snimak
+Snimak se čuva samo u pregledniku računara na kojem se snima (IndexedDB), dijeli se na dijelove od 20 minuta i šalje se samo Googleu pri obradi.
+Briše se nakon potvrde zapisnika (ili dugmetom „Obriši snimak s ovog računara“). Obradu treba pokrenuti na istom računaru i u istom pregledniku na kojem je snimano.
+Ako se očisti podaci preglednika prije obrade, snimak je izgubljen. Dijelove možete preuzeti kao rezervnu kopiju.
+
+## 5. Šta je provjereno, a šta nije
+Provjereno automatskim testovima (DEMO i simulirani Firebase + simulirani Gemini): prijava, uloge, saglasnost, snimanje, lokalna pohrana, obrada, rotacija ključeva (429),
+provjera odgovora modela, blokada povjerljivih sastanaka, potvrda kroz transakciju, brisanje snimka, zaključavanje, konflikt izmjena, DOCX izvoz, zlonamjerni unos, telefonski ekran.
+**Nije provjereno:** pravila `firestore.rules` (nisu pokretana u Firebase emulatoru ni na stvarnom projektu), pozivi stvarnom Gemini API-ju iz preglednika
+(CORS), prihvata li Gemini format `audio/webm` koji snima Chrome, kvalitet prepoznavanja bosanskog, rad na iPhoneu s zaključanim ekranom, DOCX u samom Wordu.
+
+## 6. Ograničenja
+- Jedan dio snimka najviše 14 MB (oko sat vremena; snimanje dijeli samo na 20 minuta). Učitani gotov zapis veći od 14 MB treba podijeliti.
+- Besplatni Gemini ima dnevna i minutna ograničenja; kod dugih sastanaka obrada može čekati ili preći na drugi ključ.
 - Razdvajanje govornika radi Gemini okvirno („Govornik 1…“); imena treba provjeriti u pregledu.
-- Brisanje snimka: aplikacija ga poziva odmah nakon potvrde; ako ne uspije, na zapisniku postoji dugme „Obriši snimak“.
+- Spark plan: 50.000 čitanja i 20.000 upisa dnevno — za ovu upotrebu više nego dovoljno.

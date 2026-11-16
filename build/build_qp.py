@@ -73,7 +73,7 @@ BL(['Sastanak se snima samo uz saglasnost svih prisutnih.','Saglasnost se eviden
 H2('6.3 Vođenje sastanka i zapisnika')
 BL(['Predsjedavajući predlaže dnevni red, koji prisutni glasanjem usvajaju i mogu ga dopuniti.','Zapisničar bilježi tok sastanka po tačkama dnevnog reda: ko je učestvovao u raspravi i sažetak izlaganja.','Rezultat glasanja (za, protiv, suzdržani) i zaključak bilježe se po tačkama. Izdvojeno mišljenje bilježi se na zahtjev člana.','Za svaki zadatak određuju se odgovorna osoba i krajnji rok (QP 01). Rok i odgovorna osoba upisuju se samo ako su izričito dogovoreni.'])
 H2('6.4 Izrada nacrta iz snimka')
-BL(['Snimak se obrađuje u aplikaciji: izrađuje se transkript i nacrt zapisnika u propisanom obrascu.','Obrada se vrši preko vanjskih servisa za prepoznavanje govora i izradu teksta. Ustanova s pružaocem usluge zaključuje pisani ugovor o obradi podataka (član 30 Zakona), a prenos podataka izvan Bosne i Hercegovine vrši se u skladu s poglavljem IV Zakona (čl. 46–51).','Ništa se ne upisuje što nije izrečeno. Nejasna mjesta označavaju se kao [nejasno].','Nacrt se ne smije smatrati zapisnikom dok ga ne potvrdi Direktor.'])
+BL(['Snimak se obrađuje u aplikaciji: izrađuje se transkript i nacrt zapisnika u propisanom obrascu.','Obrada se vrši preko vanjskih servisa za prepoznavanje govora i izradu teksta. Koristi se besplatni nivo servisa Google Gemini, za koji ne postoji ugovor o obradi podataka, a Google može koristiti poslani sadržaj za razvoj svojih proizvoda i ljudi ga mogu pregledati. Zato se vanjskom servisu šalju samo sastanci označeni nivoom „Opći“, bez ličnih podataka djece, roditelja i zaposlenih. Sastanci označeni kao povjerljivi ili strogo povjerljivi ne šalju se vanjskom servisu, a zapisnik se piše ručno. Prije svakog slanja aplikacija traži potvrdu osobe koja šalje.','Ništa se ne upisuje što nije izrečeno. Nejasna mjesta označavaju se kao [nejasno].','Nacrt se ne smije smatrati zapisnikom dok ga ne potvrdi Direktor.'])
 MARK('Odrediti pružaoca usluge i uslove ugovora o obradi podataka (lokacija obrade, čuvanje podataka kod pružaoca).')
 H2('6.5 Pregled i potvrda zapisnika')
 BL(['Zapisničar pregleda i ispravlja nacrt, uz provjeru po snimku gdje je to potrebno.','Zapisnik potvrđuje Direktor. Prije potvrde aplikacija upozorava na zadatke bez odgovorne osobe ili roka i na mjesta označena kao [nejasno].','Potvrđeni zapisnik se zaključava i ne može se mijenjati. Ispravka se vrši novim izdanjem zapisnika uz obrazloženje.'])
@@ -84,7 +84,7 @@ BL(['Vodi se jedan snimak i jedan zapisnik (QP 10.ZS-02).','Cijeli zajednički z
 H2('6.8 Povjerljivost i zaštita podataka')
 BL(['Pristup zapisnicima određen je ulogom osobe u ustanovi i nivoom povjerljivosti zapisnika.','Zapisnici ustanova IDSS i IMH čuvaju se odvojeno.','Pristup i izmjene se evidentiraju u dnevniku aplikacije.'])
 H2('6.9 Čuvanje i brisanje snimaka')
-BL(['Audio snimak se briše nakon potvrde zapisnika.','Potvrđeni zapisnik i transkript čuvaju se u elektronskoj arhivi aplikacije godinu dana.'])
+BL(['Audio snimak čuva se samo na računaru organizatora, ne na serveru, i briše se nakon potvrde zapisnika.','Potvrđeni zapisnik i transkript čuvaju se u elektronskoj arhivi aplikacije godinu dana.'])
 MARK('Rok čuvanja zapisnika i transkripta od godinu dana odredio je Direktor; po isteku roka Direktor odobrava uništavanje.')
 H2('6.10 Prevod na engleski')
 P('Zapisnik se sastavlja na bosanskom jeziku. Na zahtjev korisnika izrađuje se prevod potvrđenog zapisnika na engleski jezik, koji se čuva uz zapisnik i označava kao prevod. Mjerodavan je zapisnik na bosanskom jeziku.')
@@ -107,7 +107,7 @@ tbl([2500, 1500, 1700, 2000, W-7700], ['Naziv zapisa','Oznaka','Odgovorna osoba'
  ['Zapisnik sa sastanka','QP 10.ZS-01','Zapisničar','Elektronska arhiva (aplikacija)','godinu dana'],
  ['Zapisnik sa zajedničkog sastanka uprave','QP 10.ZS-02','Zapisničar','Elektronska arhiva (aplikacija), pristup samo uprava','godinu dana'],
  ['Evidencija saglasnosti za snimanje','u aplikaciji','Predsjedavajući','Elektronska arhiva (aplikacija)','kao zapisnik'],
- ['Audio snimak sastanka','—','Administrator aplikacije','Privatna pohrana aplikacije','do potvrde zapisnika'],
+ ['Audio snimak sastanka','—','Administrator aplikacije','Računar organizatora (ne server)','do potvrde zapisnika'],
  ['Transkript sastanka','—','Zapisničar','Elektronska arhiva (aplikacija)','godinu dana']])
 
 H('10. PRILOZI')

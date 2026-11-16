@@ -51,6 +51,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- Gemini ključevi: čitaju samo direktor i uprava; upisuje administrator (Firebase konzola) ----------
+    // Napomena: ključevi su vidljivi u pregledniku korisnika koji ih smiju čitati. Ako neko takav ode, ključeve zamijenite.
+    match /config/{doc} {
+      allow read: if signedIn() && doc == 'gemini' && (isUprava('IMH') || isUprava('IDSS'));
+      allow write: if false;
+    }
+
     // ---------- sastanci i zapisnici ----------
     match /meetings/{id} {
       allow read: if canSee(resource.data.scope)
@@ -84,14 +91,18 @@ service cloud.firestore {
                 && request.resource.data.confirmedBy == request.auth.uid
                 && request.resource.data.confirmedAt == request.time))
         && (request.resource.data.status == 'potvrdjen'
-            || (!('confirmedBy' in request.resource.data) && !('confirmedAt' in request.resource.data)));
+            || (!('confirmedBy' in request.resource.data) && !('confirmedAt' in request.resource.data)))
+        // u snimanje se ne ide bez evidentirane saglasnosti (dokument consents/main)
+        && (request.resource.data.status != 'snimanje'
+            || resource.data.status == 'snimanje'
+            || exists(/databases/$(database)/documents/meetings/$(id)/consents/main));
 
       allow delete: if false;
 
       // Evidencija saglasnosti za snimanje: samo dok je sastanak u fazi saglasnosti; nema izmjene ni brisanja.
       match /consents/{cid} {
         allow read: if canSeeMeeting(id);
-        allow create: if signedIn()
+        allow create: if signedIn() && cid == 'main'
           && exists(meetingPath(id))
           && get(meetingPath(id)).data.status == 'saglasnost'
           && canEdit(get(meetingPath(id)).data.scope, get(meetingPath(id)).data.createdBy)
@@ -102,14 +113,16 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Transkripti i dnevnik radnji: upisuju samo funkcije (Admin SDK); čita direktor.
-      match /transcripts/{tid} {
-        allow read: if exists(meetingPath(id)) && canConfirm(get(meetingPath(id)).data.scope);
-        allow write: if false;
-      }
+      // Dnevnik radnji: dodaje autor ili direktor (vrijeme postavlja server); čita direktor; nema izmjene ni brisanja.
       match /audit/{aid} {
         allow read: if exists(meetingPath(id)) && canConfirm(get(meetingPath(id)).data.scope);
-        allow write: if false;
+        allow create: if signedIn() && exists(meetingPath(id))
+          && canEdit(get(meetingPath(id)).data.scope, get(meetingPath(id)).data.createdBy)
+          && request.resource.data.keys().hasOnly(['action', 'uid', 'at'])
+          && request.resource.data.action is string && request.resource.data.action.size() < 200
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.at == request.time;
+        allow update, delete: if false;
       }
     }
   }

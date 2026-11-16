@@ -1,12 +1,10 @@
 {
   "hosting": {
     "public": "app",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "index.src.html", "dx.js", "vendor/**", "UPUTE.md", "*.bak.html"],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "index.src.html", "dx.js", "gemini-klijent.js", "vendor/**", "UPUTE.md", "*.bak.html"],
     "headers": [{ "source": "**", "headers": [
       { "key": "Cache-Control", "value": "no-cache" },
       { "key": "Permissions-Policy", "value": "microphone=(self)" } ] }]
   },
-  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
-  "storage": { "rules": "storage.rules" },
-  "functions": [{ "source": "functions", "codebase": "default", "ignore": ["node_modules", ".git", "test"] }]
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" }
 }

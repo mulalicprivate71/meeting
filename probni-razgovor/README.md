@@ -35,7 +35,7 @@ Razno [zajedničko]
 ```
 
 ## 2. Kako testirati
-- **Bez snimanja:** zalijepite sadržaj `razgovor_transkript.txt` u polje „Zalijepite transkript“ (u DEMO načinu nacrt se ne razvrstava; ovo služi samo za priloženi transkript).
+- **Bez snimanja (transkript):** u kartici „Postavke“ upišite Gemini ključeve, napravite sastanak, na ekranu snimanja zalijepite sadržaj `razgovor_transkript.txt` u polje za transkript i kliknite „Nastavi na obradu“. Bez ključeva aplikacija ne razvrstava tekst i zapisnik se ne može potvrditi.
 - **S pravim snimkom (Firebase + Gemini):** snimite čitanje teksta (pet osoba čita svoje redove; dovoljno je i jedna osoba koja mijenja glas, ali bolje pet). Trajanje oko 7 minuta. Zatim ga obradite u aplikaciji i uporedite s očekivanim rezultatom ispod.
 
 ## 3. Očekivani rezultat

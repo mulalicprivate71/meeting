@@ -54,9 +54,11 @@ td input,td select,td textarea{border:none;padding:3px;min-height:0;background:t
 @media print{
   body{background:#fff}
   header.top,.stripe,nav.tabs,main{display:none!important}
-  #print{display:block;padding:0 10mm}
+  @page{size:A4;margin:0}
+  #print{display:block;padding:0 12mm}
+  #print .pw,#print .pw>thead>tr>td,#print .pw>tbody>tr>td,#print .pw>tfoot>tr>td{border:0!important;padding:0!important;margin:0}
   #print table th{background:var(--acc)!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  #print .foot{position:fixed;bottom:0;left:10mm;right:10mm;border-top:2px solid var(--acc);font-size:10px;padding-top:4px}
+  #print .foot{position:fixed;bottom:8mm;left:12mm;right:12mm;border-top:2px solid var(--acc);font-size:10px;padding-top:4px}
 }
 </style>
 </head>
@@ -106,7 +108,8 @@ function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v
 let lsUpozoren=false;
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ if(!lsUpozoren){ lsUpozoren=true; alert("Podaci se ne mogu trajno sačuvati u ovom pregledniku (privatni prozor ili pun prostor). Preuzmite DOCX prije zatvaranja stranice."); } return false; } }
 let memStore = {};
-const fmtDat = d => d? new Date(d).toLocaleDateString("bs-Latn-BA"):"";
+const fmtDat = d => { if(!d) return ""; const p=String(d).slice(0,10).split("-"); return p.length===3&&p[0].length===4 ? `${p[2]}. ${p[1]}. ${p[0]}.` : String(d); };
+const velikoSlovo = t => { t=String(t||"").trim(); return t? t.charAt(0).toLocaleUpperCase("bs")+t.slice(1) : t; };
 
 /* ============ SKLADIŠTE PODATAKA ============ */
 let DEMO = true;                 // postaje false tek kad se Firebase uspješno pokrene (init)
@@ -198,23 +201,25 @@ const store = {
   },
   // Obrada u pregledniku: audio se šalje Googleu (Gemini), ključevi dolaze iz Firestorea (config/gemini).
   async process(m, napredak){
-    if(DEMO) return null;
     let cfg;
-    try{ const d = await fb.db.collection("config").doc("gemini").get(); cfg = d.exists ? d.data() : null; }
-    catch(e){ throw new Error("Nemate pravo na Gemini ključeve. Obradu može pokrenuti direktor ili uprava."); }
-    if(!cfg || !cfg.keys) throw new Error("Gemini ključevi nisu postavljeni (Firestore: config/gemini, polje keys).");
+    if(DEMO){ cfg = lsGet("zs_gemini", null); if(!cfg || !cfg.keys) return null; }
+    else {
+      try{ const d = await fb.db.collection("config").doc("gemini").get(); cfg = d.exists ? d.data() : null; }
+      catch(e){ throw new Error("Nemate pravo na Gemini ključeve. Obradu može pokrenuti direktor ili uprava."); }
+      if(!cfg || !cfg.keys) throw new Error("Gemini ključevi nisu postavljeni (Firestore: config/gemini, polje keys).");
+    }
     const ring = new GM.KeyRing(cfg.keys), dijelovi = await aud.all(m.id);
     let transkript = m.transkript||"";
     if(dijelovi.length){
-      const c = await fb.db.collection("meetings").doc(m.id).collection("consents").doc("main").get();
-      if(!c.exists) throw new Error("Nema evidentirane saglasnosti za snimanje; snimak se ne obrađuje.");
+      const imaSaglasnost = DEMO ? !!(m.saglasnost && m.saglasnost.data) : (await fb.db.collection("meetings").doc(m.id).collection("consents").doc("main").get()).exists;
+      if(!imaSaglasnost) throw new Error("Nema evidentirane saglasnosti za snimanje; snimak se ne obrađuje.");
       try{ transkript = await GM.transkribuj(ring, dijelovi.map(b=>({blob:b, mime:mimeZa(b)})), "bs", {model:cfg.model||undefined, napredak}); }
       catch(e){ console.error(e); throw new Error("Prepoznavanje govora nije uspjelo: "+e.message); }
-      await this.audit(m, "transkript izrađen");
+      await this.audit(m, "transkript izrađen");   // u DEMO se ne bilježi
     }
     if(!transkript.trim()) throw new Error("Nema snimka ni transkripta za obradu.");
     let d;
-    try{ d = await GM.nacrt(ring, transkript, (m.tacke||[]).map(t=>String(t.naslov||"")), {model:cfg.model||undefined}); }
+    try{ d = await GM.nacrt(ring, transkript, (m.tacke||[]).map(t=>String(t.naslov||"")), {model:cfg.model||undefined, prisutni:(m.prisutni||[]).filter(p=>p.ime).map(p=>p.ime+(p.uloga?" ("+p.uloga+")":"")), datum:m.datum}); }
     catch(e){ console.error(e); throw new Error("Izrada nacrta nije uspjela: "+e.message); }
     return {minutes: GM.sastavi(m, d, transkript)};
   },
@@ -333,18 +338,19 @@ function prijava(){
 }
 
 /* ============ GLAVNI OKVIR ============ */
-const TABOVI = [["novi","Novi sastanak"],["arhiva","Arhiva"],["upute","Upute"]];
+const tabovi = ()=> [["novi","Novi sastanak"],["arhiva","Arhiva"],["upute","Upute"]].concat(DEMO?[["postavke","Postavke"]]:[]);
 async function render(){
   if(!S.user){ prijava(); return; }
   $("#who").textContent = S.user.ime||S.user.email;
   const lo=$("#logout"); lo.classList.remove("hide");
   lo.onclick = async ()=>{ if(!DEMO) await fb.auth.signOut(); S.user=null; S.mem=null; lsSet("zs_user",null); render(); };
-  $("#tabs").innerHTML = TABOVI.map(([k,t])=>`<button class="${S.tab===k?"on":""}" data-k="${k}">${t}</button>`).join("");
+  $("#tabs").innerHTML = tabovi().map(([k,t])=>`<button class="${S.tab===k?"on":""}" data-k="${k}">${t}</button>`).join("");
   document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{ if(S.rec&&!confirm("Snimanje je u toku. Napustiti ekran?"))return; S.tab=b.dataset.k; S.cur=null; render(); });
   try{ S.meetings = await store.list(); }catch(e){ $("#main").innerHTML=`<div class="note">Greška pri čitanju: ${esc(e.message)}</div>`; return; }
   if(S.cur) return radni();
   if(S.tab==="novi") return noviEkran();
   if(S.tab==="arhiva") return arhiva();
+  if(S.tab==="postavke" && DEMO) return postavke();
   return upute();
 }
 
@@ -354,7 +360,7 @@ function noviEkran(){
   <h2>Priprema sastanka</h2>
   <div class="row">
     <div><label>Ustanova</label><select id="n_sc">${Object.entries(USTANOVE).map(([k,v])=>`<option value="${k}">${k==="ZAJEDNICKI"?"Zajednički sastanak uprave (IMH + IDSS)":k}</option>`).join("")}</select></div>
-    <div><label>Vrsta sastanka</label><select id="n_tip">${TIPOVI.map(t=>`<option>${esc(t)}</option>`).join("")}</select></div>
+    <div><label>Vrsta sastanka</label><select id="n_tip"><option value="">— izaberite vrstu —</option>${TIPOVI.map(t=>`<option>${esc(t)}</option>`).join("")}</select></div>
   </div>
   <label>Tema sastanka</label><input id="n_tema">
   <div class="row">
@@ -371,15 +377,16 @@ function noviEkran(){
   <label>Dnevni red (jedan red = jedna tačka; za zajednički sastanak dodajte oznaku na kraju reda: [IMH], [IDSS] ili [zajedničko])</label>
   <textarea id="n_dn" placeholder="Prva tačka\nDruga tačka"></textarea>
   <div class="actions"><button id="n_go">Nastavi na saglasnost i snimanje</button></div>`;
-  $("#n_sc").onchange = e=>{ $("#n_tip").innerHTML = tipoviZa(e.target.value).map(t=>`<option>${esc(t)}</option>`).join(""); };
+  $("#n_sc").onchange = e=>{ $("#n_tip").innerHTML = '<option value="">— izaberite vrstu —</option>'+tipoviZa(e.target.value).map(t=>`<option>${esc(t)}</option>`).join(""); };
   $("#n_go").onclick = ()=>{
     const sc=$("#n_sc").value;
     const prisutni = $("#n_uc").value.split("\n").map(r=>r.trim()).filter(Boolean).map(r=>{const [i,...u]=r.split(/\s[—–-]\s/); return {ime:i.trim(),uloga:(u.join(" – ")||"").trim(),napomena:""};});
     const dnevni = $("#n_dn").value.split("\n").map(r=>r.trim()).filter(Boolean).map(r=>{
-      const m=r.match(/\s*\[(IMH|IDSS|zajedničko)\]\s*$/i); return {naslov:r.replace(/\s*\[[^\]]+\]\s*$/,""), oznaka:m?m[1].replace(/^zajedničko$/i,"zajedničko"):(sc==="ZAJEDNICKI"?"zajedničko":sc)};
+      const m=r.match(/\s*\[(IMH|IDSS|zajedničko)\]\s*$/i); return {naslov:velikoSlovo(r.replace(/\s*\[[^\]]+\]\s*$/,"")), oznaka:m?m[1].replace(/^zajedničko$/i,"zajedničko"):(sc==="ZAJEDNICKI"?"zajedničko":sc)};
     });
     const m = prazanZapisnik({scope:sc,tip:$("#n_tip").value,tema:$("#n_tema").value.trim(),mjesto:$("#n_mj").value.trim(),datum:$("#n_dat").value,povjerljivost:$("#n_pov").value,predsjedavajuci:$("#n_pred").value.trim(),zapisnicar:$("#n_zap").value.trim(),
       prisutni:prisutni.length?prisutni:[{ime:"",uloga:"",napomena:""}], dnevni:dnevni.length?dnevni:[{naslov:"",oznaka:sc==="ZAJEDNICKI"?"zajedničko":sc}]});
+    if(!m.tip){ alert("Izaberite vrstu sastanka."); return; }
     if(!m.tema){ alert("Unesite temu sastanka."); return; }
     m.tacke = m.dnevni.map(d=>({naslov:d.naslov,oznaka:d.oznaka,rasprava:"",za:"",protiv:"",suzdrzani:"",nacin:"Bez glasanja",zakljucak:"",izdvojeno:""}));
     m.status="saglasnost";
@@ -500,7 +507,7 @@ function ekranSnimanje(m){
 
 function nacrtIzTranskripta(m){
   // DEMO: bez prepoznavanja govora i bez jezičkog modela; ništa se ne izmišlja.
-  m.tacke.forEach(t=>{ if(!t.rasprava) t.rasprava = m.transkript? "[nejasno – transkript je priložen, tačka nije razvrstana]":""; });
+  /* DEMO bez ključeva: ništa se ne upisuje u tačke (ne izmišlja se) */
   return m;
 }
 function ekranObrada(m){
@@ -510,15 +517,9 @@ function ekranObrada(m){
   S.obrada[m.id] = true;
   (async()=>{
     try{
-      if(DEMO){
-        await new Promise(r=>setTimeout(r,600));
-        nacrtIzTranskripta(m);
-        $("#ob").innerHTML = `<b>Demo:</b> prepoznavanje govora nije povezano. Napravljen je prazan nacrt iz dnevnog reda${m.transkript?" uz priloženi transkript":""}.`;
-      } else {
-        const r = await store.process(m, (i,n)=>{ const el=$("#ob"); if(el) el.textContent="Prepoznavanje govora: dio "+i+" od "+n+"…"; });
-        if(r && r.minutes) Object.assign(m, r.minutes, {id:m.id,scope:m.scope});
-        $("#ob").textContent="Obrada završena. Nacrt je spreman za pregled.";
-      }
+      const r = await store.process(m, (i,n)=>{ const el=$("#ob"); if(el) el.textContent="Prepoznavanje govora: dio "+i+" od "+n+"…"; });
+      if(r && r.minutes){ Object.assign(m, r.minutes, {id:m.id,scope:m.scope}); $("#ob").textContent="Obrada završena. Nacrt je spreman za pregled."; }
+      else { nacrtIzTranskripta(m); $("#ob").innerHTML = `<b>Obrada nije izvršena:</b> u DEMO načinu nisu upisani Gemini ključevi (kartica „Postavke“). Napravljen je prazan nacrt iz dnevnog reda${m.transkript?"; transkript je sačuvan uz zapisnik":""}. Zapisnik se ne može potvrditi dok se ne unese tok sastanka.`; }
       m.status="nacrt"; await store.save(m);
       delete S.obrada[m.id];
       setTimeout(render,900);
@@ -594,7 +595,12 @@ function ekranPregled(m){
     $("#p_save").onclick=async()=>{ sakupi(); await store.save(m); alert("Nacrt je sačuvan."); };
     $("#p_ok").onclick=async()=>{
       sakupi();
+      const bezSadrzaja = !m.tacke.some(t=>(t.rasprava||"").trim()||(t.zakljucak||"").trim());
+      if(bezSadrzaja){ alert("Zapisnik se ne može potvrditi: nijedna tačka dnevnog reda nema raspravu ni zaključak.\n\nPokrenite obradu snimka/transkripta (u DEMO načinu su potrebni Gemini ključevi u Postavkama) ili unesite tok sastanka ručno."); return; }
       const problemi=[];
+      m.tacke.forEach((t,i)=>{ if(!(t.rasprava||"").trim()&&!(t.zakljucak||"").trim()) problemi.push(`Ad ${i+1}: nema rasprave ni zaključka`); });
+      if(!(m.broj||"").trim()) problemi.push("Nije upisan broj zapisnika");
+      if(!m.pocetak||!m.kraj) problemi.push("Nije upisano vrijeme početka ili završetka");
       m.zadaci.filter(z=>z.zadatak.trim()).forEach((z,i)=>{ if(!z.odgovorna.trim()) problemi.push(`Zadatak ${i+1}: nema odgovorne osobe`); if(!z.rok) problemi.push(`Zadatak ${i+1}: nema krajnjeg roka`); });
       if(!m.predsjedavajuci.trim()) problemi.push("Nije upisan predsjedavajući");
       if(!m.zapisnicar.trim()) problemi.push("Nije upisan zapisničar");
@@ -631,7 +637,7 @@ function ispis(m, izvod){
   const ok = o => !izvod || o==="zajedničko" || o===izvod;
   const tacke=m.tacke.filter(t=>ok(t.oznaka)), zadaci=m.zadaci.filter(z=>z.zadatak&&ok(z.oznaka));
   document.documentElement.style.setProperty("--acc",A);
-  $("#print").innerHTML = `
+  $("#print").innerHTML = `<table class="pw"><thead><tr><td><div style="height:14mm"></div></td></tr></thead><tbody><tr><td>
   <p>Broj zapisnika: ${esc(m.broj||"____")} &nbsp; Sarajevo, ${fmtDat(m.datum)}</p>
   <h1 style="text-align:center;color:${A};letter-spacing:3px;margin:6px 0">ZAPISNIK SA SASTANKA${izvod?" — IZVOD":""}</h1>
   <p style="text-align:center;font-style:italic;font-size:12px">${esc(naziv)}</p>
@@ -643,15 +649,16 @@ function ispis(m, izvod){
   <h3>Prisutni</h3><table><tr><th>R.br.</th><th>Ime i prezime</th><th>Funkcija</th><th>Napomena</th></tr>${m.prisutni.filter(p=>p.ime).map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.ime)}</td><td>${esc(p.uloga)}</td><td>${esc(p.napomena)}</td></tr>`).join("")}</table>
   <p style="font-size:12px">Opravdano odsutni: ${esc(m.odsutniOp)||"—"} · Neopravdano odsutni: ${esc(m.odsutniNeop)||"—"} · Bez prava glasa: ${esc(m.bezGlasa)||"—"}<br>Kvorum: ${esc(m.kvorum)} · Predsjedavajući: ${esc(m.predsjedavajuci)} · Zapisničar: ${esc(m.zapisnicar)}</p>
   <h3>Dnevni red i tok sastanka</h3>
-  ${tacke.map((t,i)=>`<table style="page-break-inside:avoid"><tr><th colspan="2">Ad ${i+1}. ${esc(t.naslov)}</th></tr>
+  ${tacke.map((t,i)=>`<table style="page-break-inside:avoid"><tr><th colspan="2">Ad ${i+1}. ${esc(velikoSlovo(t.naslov))}</th></tr>
     <tr><td style="width:22%"><b>Rasprava</b></td><td>${esc(t.rasprava).replace(/\n/g,"<br>")}</td></tr>
     <tr><td><b>Glasanje</b></td><td>Za: ${esc(t.za)||"—"} · Protiv: ${esc(t.protiv)||"—"} · Suzdržani: ${esc(t.suzdrzani)||"—"} (${esc(t.nacin)})</td></tr>
     <tr><td><b>Zaključak</b></td><td>${esc(t.zakljucak).replace(/\n/g,"<br>")}</td></tr>
     <tr><td><b>Izdvojeno mišljenje</b></td><td>${esc(t.izdvojeno)}</td></tr></table>`).join("")}
-  <h3>Zadaci i dogovori</h3><table><tr><th>R.br.</th><th>Zadatak</th><th>Odgovorna osoba</th><th>Krajnji rok</th><th>Status</th></tr>${zadaci.map((z,i)=>`<tr><td>${i+1}</td><td>${esc(z.zadatak)}</td><td>${esc(z.odgovorna)}</td><td>${fmtDat(z.rok)}</td><td>${esc(z.status)}</td></tr>`).join("")}</table>
+  <h3>Zadaci i dogovori</h3><table><tr><th>R.br.</th><th>Zadatak</th><th>Odgovorna osoba</th><th>Krajnji rok</th><th>Status</th></tr>${zadaci.map((z,i)=>`<tr><td>${i+1}</td><td>${esc(z.zadatak)}</td><td>${esc(z.odgovorna)}</td><td>${fmtDat(z.rok)}</td><td>${esc(z.status)}</td></tr>`).join("")||`<tr><td colspan="5">Nema dogovorenih zadataka.</td></tr>`}</table>
   <p style="font-size:12px">Prilozi: ${esc(m.prilozi)||"—"} · Naredni sastanak: ${esc(m.naredni)||"—"}</p>
   <table><tr><th style="width:22%">Status</th><td>${m.status==="potvrdjen"?"Potvrđen":"NACRT"}</td><th style="width:22%">Potvrdio</th><td>${esc(m.potvrdio||"")} ${m.potvrdjenoKada?fmtDat(m.potvrdjenoKada):""}</td></tr>
   <tr><th>Zapisničar (potpis)</th><td style="height:50px"></td><th>Predsjedavajući (potpis)</th><td></td></tr></table>
+  </td></tr></tbody><tfoot><tr><td><div style="height:24mm"></div></td></tr></tfoot></table>
   <div class="foot"><b style="color:${A}">${KOD_OBRASCA}</b> | Zapisnik sa sastanka | Izdanje ${IZDANJE}<br>${esc(naziv)}</div>`;
   window.print();
 }
@@ -669,6 +676,23 @@ function arhiva(){
   document.querySelectorAll("[data-o]").forEach(b=>b.onclick=()=>{ S.cur=b.dataset.o; render(); });
 }
 
+function postavke(){
+  const c = lsGet("zs_gemini", null) || {};
+  $("#main").innerHTML = `<h2>Postavke obrade (DEMO način)</h2>
+  <div class="note">Ovdje upišite Gemini ključeve (jedan po redu ili odvojeni zarezom). Ključevi se čuvaju samo u ovom pregledniku, na ovom računaru. Aplikacija ih koristi redom (rotacija); ako ključ dostigne ograničenje, prelazi na idući.
+  <br><b>Besplatni Gemini:</b> Google može koristiti poslani sadržaj za razvoj svojih proizvoda, a ljudi ga mogu pročitati (odluka Direktora: šalje se sve).</div>
+  <label>Gemini ključevi</label><textarea id="g_k" rows="5" placeholder="AIza…">${esc(c.keys||"")}</textarea>
+  <label>Model (nije obavezno; zadano gemini-2.5-flash)</label><input id="g_m" value="${esc(c.model||"")}" placeholder="gemini-2.5-flash">
+  <div class="actions"><button id="g_s">Sačuvaj</button><button id="g_t" class="sec">Provjeri ključeve</button></div><div id="g_r" class="muted" style="margin-top:8px"></div>`;
+  const uzmi=()=>({keys:$("#g_k").value.trim(), model:$("#g_m").value.trim()});
+  $("#g_s").onclick=()=>{ const ok=lsSet("zs_gemini", uzmi()); $("#g_r").textContent = ok!==false ? "Sačuvano ("+(uzmi().keys.split(/[\s,;]+/).filter(Boolean).length)+" ključeva)." : "Čuvanje nije uspjelo (preglednik blokira pohranu)."; };
+  $("#g_t").onclick=async()=>{
+    $("#g_r").textContent="Provjera u toku…";
+    try{ const r = await GM.provjeriKljuceve(uzmi().keys, uzmi().model||undefined);
+      $("#g_r").innerHTML = r.map(x=>`Ključ ${x.i}: ${x.ok?"radi":"NE radi ("+esc(x.poruka)+")"}`).join("<br>"); }
+    catch(e){ $("#g_r").textContent="Greška: "+e.message; }
+  };
+}
 function upute(){
   $("#main").innerHTML = `<h2>Upute</h2>
   <div class="card"><b>Tok:</b> priprema → saglasnost → snimanje (ili otprema audija) → obrada → pregled i ispravka → potvrda → arhiva i ispis.</div>

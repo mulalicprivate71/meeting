@@ -9,8 +9,11 @@ Sadržaj repozitorija:
 - `probni-razgovor/` — izmišljeni sastanak za probu i očekivani rezultat
 
 ## 1. Isprobavanje odmah (DEMO)
-Dvaput kliknite `app\index.html`. Prijavite se bilo kojom e-poštom i imenom. Podaci ostaju samo u tom pregledniku, nema zaštite
-pristupa i nema prepoznavanja govora (nacrt se pravi iz dnevnog reda, ništa se ne izmišlja). DOCX izvoz radi i bez interneta.
+Dvaput kliknite `app\index.html`. Prijavite se bilo kojom e-poštom i imenom. Podaci ostaju samo u tom pregledniku (nema zaštite pristupa).
+Za prepoznavanje govora i izradu nacrta otvorite karticu **Postavke** i upišite Gemini ključeve (dugme „Provjeri ključeve“ pokazuje koji rade);
+nakon toga se i u DEMO načinu snimak ili zalijepljeni transkript obrađuje stvarnim Geminijem. Bez ključeva aplikacija ništa ne izmišlja: tačke ostaju prazne,
+a zapisnik se ne može potvrditi dok nema toka sastanka. DOCX izvoz radi i bez interneta.
+Pri štampanju (Ispis / PDF) zaglavlja i podnožja preglednika više se ne ispisuju.
 
 ## 2. Pravi rad (Firebase Spark)
 Potrebno: Google račun, Node.js (LTS) i u Komandnoj liniji (cmd): `npm install -g firebase-tools`.

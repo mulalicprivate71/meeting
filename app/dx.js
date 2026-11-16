@@ -42,6 +42,7 @@ const DX = (() => {
     return out + "</w:tbl>";
   };
   const spaced = s => s.split(" ").map(w => w.split("").join(" ")).join("   ");
+  const cap = t => { t = String(t || "").trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; };
   const fmtD = iso => { if (!iso) return ""; const p = String(iso).slice(0, 10).split("-"); return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}.` : String(iso); };
   const cb = (on, t) => (on ? "☒ " : "☐ ") + t;
 
@@ -119,7 +120,7 @@ const DX = (() => {
     for (let i = 0; i < nD; i++) {
       const t = tacke[i];
       const glas = t && (t.za || t.protiv || t.suzdrzani) ? `${t.za || "-"} / ${t.protiv || "-"} / ${t.suzdrzani || "-"}` : "";
-      drow.push(tc(dc[0], para(run(`${i + 1}.`, {sz: 16}), {jc: "center"})) + val(dc[1], t ? t.naslov : "") + (joint ? val(dc[2], t ? t.oznaka : "") : "") + val(dc[dc.length - 1], glas));
+      drow.push(tc(dc[0], para(run(`${i + 1}.`, {sz: 16}), {jc: "center"})) + val(dc[1], t ? cap(t.naslov) : "") + (joint ? val(dc[2], t ? t.oznaka : "") : "") + val(dc[dc.length - 1], glas));
     }
     out.push(table(dc, drow, L, [null, ...Array(nD).fill(330)]));
     note("Predsjedavajući predlaže dnevni red i daje ga na usvajanje; prisutni ga glasanjem usvajaju i mogu ga dopuniti.", {before: 40});
@@ -133,7 +134,7 @@ const DX = (() => {
       const t = tacke[n] || {naslov: "", oznaka: "", rasprava: "", nacin: "", za: "", protiv: "", suzdrzani: "", zakljucak: "", izdvojeno: ""};
       const ozn = joint ? "   " + ["IMH", "IDSS", "zajedničko"].map(x => cb(t.oznaka === x, x)).join("  ") : "";
       out.push(table(tk, [
-        tc(W, para(run(`Ad ${n + 1}.  ${t.naslov || "____________________________________________"}${ozn}`, {sz: 18, b: true, color: "FFFFFF"}), {keep: true}), {fill: A, span: 2}),
+        tc(W, para(run(`Ad ${n + 1}.  ${cap(t.naslov) || "____________________________________________"}${ozn}`, {sz: 18, b: true, color: "FFFFFF"}), {keep: true}), {fill: A, span: 2}),
         tc(tk[0], para(run("Rasprava", {sz: 16, b: true, color: A}), {keep: true}), {valign: "top"}) + tc(tk[1], text(t.rasprava, {sz: 18, keep: true})),
         lab(tk[0], "Rezultat glasanja") + tc(tk[1], para(run(`Za: ${t.za || "____"}     Protiv: ${t.protiv || "____"}     Suzdržani: ${t.suzdrzani || "____"}     ` + ["Javno", "Tajno", "Bez glasanja"].map(x => cb(t.nacin === x, x)).join("   "), {sz: 16}))),
         tc(tk[0], para(run("Zaključak", {sz: 16, b: true, color: A})), {valign: "top"}) + tc(tk[1], text(t.zakljucak, {sz: 18})),

@@ -25,17 +25,17 @@ Potrebno: Google račun, Node.js (LTS) i u Komandnoj liniji (cmd): `npm install 
    - zbirku `memberships`: dokument s ID-jem = UID korisnika, polja (tekst): `IMH` = `direktor`, `IDSS` = `direktor`, `ime` = ime i prezime.
      Uloge: `direktor` | `uprava` | `voditelj` | `clan`. Zapisnike potvrđuje samo `direktor` (za zajednički sastanak direktor obje ustanove).
      Zajedničke sastanke vide samo `uprava` ili `direktor` u OBJE ustanove. Bez dokumenta u `memberships` pristup nije moguć.
-   - zbirku `config`, dokument `gemini`: polje `keys` (tekst) = svih 5 ključeva odvojenih zarezom. Opcionalno: `model` (zadano `gemini-2.5-flash`; važeći naziv provjeriti u Googleovoj dokumentaciji) i `allowConf` (logička vrijednost, zadano nije postavljeno = povjerljivi sastanci se ne šalju).
+   - zbirku `config`, dokument `gemini`: polje `keys` (tekst) = svih 5 ključeva odvojenih zarezom. Opcionalno: `model` (zadano `gemini-2.5-flash`; važeći naziv provjeriti u Googleovoj dokumentaciji).
 
 ### Rotacija Gemini ključeva
 Aplikacija koristi ključeve redom. Ako ključ vrati ograničenje (429) ili grešku servera, odmara se 15–60 sekundi i poziv ide idućim ključem; neispravan ključ se isključuje.
 **Sigurnosna napomena:** ključevi se čitaju u pregledniku, pa ih mogu vidjeti osobe s ulogom `direktor` ili `uprava`. Ako neko takav ode, zamijenite ključeve.
 Ključevi iz istog Google projekta dijele isto ograničenje.
 
-## 3. Privatnost — važno
-Prema Googleovim uslovima, kod BESPLATNOG Geminija (izvan EEA, Švicarske i UK) Google može koristiti poslani sadržaj za razvoj svojih proizvoda, a ljudi ga mogu pročitati;
-uslovi kažu da se ne šalju osjetljivi, povjerljivi ni lični podaci. Zato: aplikacija šalje samo sastanke označene kao „Opći“ i prije svakog slanja traži potvrdu;
-povjerljivi sastanci se pišu ručno. Za ostale sastanke s ličnim podacima treba ili plaćeni nalog (Google tada ne koristi sadržaj, uz ugovor o obradi) ili ručno pisanje.
+## 3. Privatnost — odluka Direktora
+Direktor je odlučio da se SVI sastanci obrađuju besplatnim Geminijem. Prema Googleovim uslovima, kod besplatnog nivoa (izvan EEA, Švicarske i UK) Google može koristiti poslani sadržaj
+za razvoj svojih proizvoda, a ljudi ga mogu pročitati; uslovi kažu da se ne šalju osjetljivi, povjerljivi ni lični podaci. Aplikacija zato nema blokade ni upita pri slanju,
+samo ispis na ekranu obrade. Ako se odluka promijeni, vrati se blokada povjerljivih sastanaka ili se pređe na plaćeni nalog.
 
 ## 4. Gdje je snimak
 Snimak se čuva samo u pregledniku računara na kojem se snima (IndexedDB), dijeli se na dijelove od 20 minuta i šalje se samo Googleu pri obradi.
@@ -44,7 +44,7 @@ Ako se očisti podaci preglednika prije obrade, snimak je izgubljen. Dijelove mo
 
 ## 5. Šta je provjereno, a šta nije
 Provjereno automatskim testovima (DEMO i simulirani Firebase + simulirani Gemini): prijava, uloge, saglasnost, snimanje, lokalna pohrana, obrada, rotacija ključeva (429),
-provjera odgovora modela, blokada povjerljivih sastanaka, potvrda kroz transakciju, brisanje snimka, zaključavanje, konflikt izmjena, DOCX izvoz, zlonamjerni unos, telefonski ekran.
+provjera odgovora modela, potvrda kroz transakciju, brisanje snimka, zaključavanje, konflikt izmjena, DOCX izvoz, zlonamjerni unos, telefonski ekran.
 **Nije provjereno:** pravila `firestore.rules` (nisu pokretana u Firebase emulatoru ni na stvarnom projektu), pozivi stvarnom Gemini API-ju iz preglednika
 (CORS), prihvata li Gemini format `audio/webm` koji snima Chrome, kvalitet prepoznavanja bosanskog, rad na iPhoneu s zaključanim ekranom, DOCX u samom Wordu.
 

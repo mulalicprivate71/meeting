@@ -57,8 +57,8 @@ const root = path.resolve(__dirname, '..');
   // ulogu bez članstva
   const lst = await p.evaluate(async()=>{ S.mem={IDSS:'clan'}; S.user.id='u-1'; try{ const l=await store.list(); return l.length; }catch(e){ return e.message; } });
   ok(typeof lst==='number', 'lista za člana radi (dva upita po ustanovi)');
-  const g = await p.evaluate(async()=>{ const m={id:'zz',scope:'IDSS',povjerljivost:'Povjerljivo',tacke:[]}; try{ await store.process(m); return 'poslano'; }catch(e){ return e.message; } });
-  ok(/povjerljivi ne šalju/.test(g),'povjerljivi sastanak se ne šalje Googleu: '+g);
+  const g = await p.evaluate(async()=>{ const m={id:'zz',scope:'IDSS',povjerljivost:'Strogo povjerljivo',tacke:[{naslov:'A'}],transkript:'tekst'}; try{ const r=await store.process(m); return r&&r.minutes?'obrađeno':'prazno'; }catch(e){ return e.message; } });
+  ok(g==='obrađeno','i strogo povjerljivi sastanak se obrađuje (odluka Direktora): '+g);
   ok(errs.length===0, 'nema JS grešaka '+JSON.stringify(errs));
   console.log('dialogs',dl);
   await b.close();

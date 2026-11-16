@@ -203,7 +203,6 @@ const store = {
     try{ const d = await fb.db.collection("config").doc("gemini").get(); cfg = d.exists ? d.data() : null; }
     catch(e){ throw new Error("Nemate pravo na Gemini ključeve. Obradu može pokrenuti direktor ili uprava."); }
     if(!cfg || !cfg.keys) throw new Error("Gemini ključevi nisu postavljeni (Firestore: config/gemini, polje keys).");
-    if(m.povjerljivost!=="Opći" && cfg.allowConf!==true) throw new Error("Sastanci označeni kao povjerljivi ne šalju se Googleu (besplatni Gemini nije za povjerljive i lične podatke). Zapisnik se piše ručno.");
     const ring = new GM.KeyRing(cfg.keys), dijelovi = await aud.all(m.id);
     let transkript = m.transkript||"";
     if(dijelovi.length){
@@ -505,7 +504,7 @@ function nacrtIzTranskripta(m){
   return m;
 }
 function ekranObrada(m){
-  $("#main").innerHTML = zaglavljeSastanka(m)+`<h2>Obrada snimka</h2><p id="ob" class="muted">Obrada je u toku…</p><div class="actions"><button id="ob_skip" class="sec hide">Nastavi s ručnim unosom</button></div>`;
+  $("#main").innerHTML = zaglavljeSastanka(m)+`<h2>Obrada snimka</h2><p class="muted">Sadržaj sastanka se šalje Googleu (besplatni Gemini) – odluka Direktora.</p><p id="ob" class="muted">Obrada je u toku…</p><div class="actions"><button id="ob_skip" class="sec hide">Nastavi s ručnim unosom</button></div>`;
   S.obrada = S.obrada || {};
   if(S.obrada[m.id]) return;
   S.obrada[m.id] = true;
@@ -516,7 +515,6 @@ function ekranObrada(m){
         nacrtIzTranskripta(m);
         $("#ob").innerHTML = `<b>Demo:</b> prepoznavanje govora nije povezano. Napravljen je prazan nacrt iz dnevnog reda${m.transkript?" uz priloženi transkript":""}.`;
       } else {
-        if(!confirm("Obrada šalje sadržaj sastanka Googleu (Gemini).\n\nBESPLATNI Gemini: Google može koristiti poslani sadržaj za razvoj svojih proizvoda, a ljudi ga mogu čitati. Ne šaljite povjerljive ni lične podatke djece, roditelja ili zaposlenih.\n\nNastaviti sa slanjem?")) throw new Error("Slanje je otkazano. Zapisnik možete pisati ručno.");
         const r = await store.process(m, (i,n)=>{ const el=$("#ob"); if(el) el.textContent="Prepoznavanje govora: dio "+i+" od "+n+"…"; });
         if(r && r.minutes) Object.assign(m, r.minutes, {id:m.id,scope:m.scope});
         $("#ob").textContent="Obrada završena. Nacrt je spreman za pregled.";

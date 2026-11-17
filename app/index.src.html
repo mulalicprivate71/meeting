@@ -651,7 +651,7 @@ function ispis(m, izvod){
   <h3>Dnevni red i tok sastanka</h3>
   ${tacke.map((t,i)=>`<table style="page-break-inside:avoid"><tr><th colspan="2">Ad ${i+1}. ${esc(velikoSlovo(t.naslov))}</th></tr>
     <tr><td style="width:22%"><b>Rasprava</b></td><td>${esc(t.rasprava).replace(/\n/g,"<br>")}</td></tr>
-    <tr><td><b>Glasanje</b></td><td>Za: ${esc(t.za)||"—"} · Protiv: ${esc(t.protiv)||"—"} · Suzdržani: ${esc(t.suzdrzani)||"—"} (${esc(t.nacin)})</td></tr>
+    <tr><td><b>Glasanje</b></td><td>${(t.nacin==="Bez glasanja" && !t.za && !t.protiv && !t.suzdrzani) ? "Bez glasanja" : `Za: ${esc(t.za)||"—"} · Protiv: ${esc(t.protiv)||"—"} · Suzdržani: ${esc(t.suzdrzani)||"—"} (${esc(t.nacin)})`}</td></tr>
     <tr><td><b>Zaključak</b></td><td>${esc(t.zakljucak).replace(/\n/g,"<br>")}</td></tr>
     <tr><td><b>Izdvojeno mišljenje</b></td><td>${esc(t.izdvojeno)}</td></tr></table>`).join("")}
   <h3>Zadaci i dogovori</h3><table><tr><th>R.br.</th><th>Zadatak</th><th>Odgovorna osoba</th><th>Krajnji rok</th><th>Status</th></tr>${zadaci.map((z,i)=>`<tr><td>${i+1}</td><td>${esc(z.zadatak)}</td><td>${esc(z.odgovorna)}</td><td>${fmtDat(z.rok)}</td><td>${esc(z.status)}</td></tr>`).join("")||`<tr><td colspan="5">Nema dogovorenih zadataka.</td></tr>`}</table>

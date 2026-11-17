@@ -16,7 +16,7 @@ const base=require('path').resolve(__dirname,'..')+'/';
   await p.fill('#n_uc',uc.join('\n'));
   const dn=[]; for(let i=0;i<70;i++) dn.push('Tačka '+i+' '+X+' ['+['IMH','IDSS','zajedničko'][i%3]+']');
   await p.fill('#n_dn',dn.join('\r\n'));
-  await p.click('#n_go'); await p.click('#s_bez');
+  await p.selectOption('#n_tip',{index:1}); await p.click('#n_go'); await p.click('#s_bez');
   await p.fill('[data-p="tacke.0.rasprava"]',X+'\r\nred\u0000\u000b\t tab 😀 \ud83d');
   await p.fill('[data-p="zadaci.0.zadatak"]',X); 
   for(let i=0;i<80;i++){ await p.click('[data-add="zadaci"]'); }

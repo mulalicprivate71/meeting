@@ -24,7 +24,7 @@ const root = path.resolve(__dirname, '..');
   ok((await p.textContent('#who')).includes('Direktor Test'), 'ime iz članstva');
   await p.click('nav.tabs button[data-k="novi"]');
   await p.selectOption('#n_sc','IDSS'); await p.fill('#n_tema','T'); await p.fill('#n_mj','M'); await p.fill('#n_pred','P'); await p.fill('#n_uc','A B — x'); await p.fill('#n_dn','Tačka 1');
-  await p.click('#n_go'); await p.check('#s_da'); await p.fill('#s_ko','Direktor'); await p.click('#s_sn');
+  await p.selectOption('#n_tip',{index:1}); await p.click('#n_go'); await p.check('#s_da'); await p.fill('#s_ko','Direktor'); await p.click('#s_sn');
   await p.click('#r_start'); await p.waitForTimeout(3500); await p.click('#r_stop'); await p.waitForTimeout(1500);
   await p.click('#r_next'); await p.waitForSelector('#p_ok',{timeout:15000});
   ok(await p.inputValue('[data-p="tacke.0.rasprava"]')==='Rasprava iz modela','nacrt iz Geminija je upisan');
@@ -51,7 +51,7 @@ const root = path.resolve(__dirname, '..');
   // konflikt: lažna izmjena revizije
   await p.click('nav.tabs button[data-k="novi"]');
   await p.selectOption('#n_sc','IDSS'); await p.fill('#n_tema','K'); await p.fill('#n_mj','M'); await p.fill('#n_pred','P'); await p.fill('#n_uc','A B — x'); await p.fill('#n_dn','Tačka');
-  await p.click('#n_go'); await p.click('#s_bez'); await p.waitForTimeout(500);
+  await p.selectOption('#n_tip',{index:1}); await p.click('#n_go'); await p.click('#s_bez'); await p.waitForTimeout(500);
   const k = await p.evaluate(async()=>{ const m=S.meetings.find(x=>x.tema==='K')||S.cur; m._rev=m._rev+5; try{ await store.save(m); return 'sacuvano'; }catch(e){ return e.message; } });
   ok(/međuvremenu/.test(k), 'konflikt revizije prijavljen: '+k);
   // ulogu bez članstva

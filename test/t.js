@@ -11,13 +11,14 @@ const { chromium } = require('playwright');
   await p.fill('#n_tema','Planiranje nove školske godine'); await p.fill('#n_mj','Zbornica'); await p.fill('#n_pred','Direktor');
   await p.fill('#n_uc','Prvi Učesnik — direktor\nDrugi Učesnik — pedagog');
   await p.fill('#n_dn','Budžet [IMH]\nNastavni plan [IDSS]\nZajednička nabavka');
-  await p.click('#n_go');
+  await p.selectOption('#n_tip',{index:1}); await p.click('#n_go');
   await p.check('#s_da'); await p.click('#s_sn');
   await p.click('#r_start'); await p.waitForTimeout(2500); await p.click('#r_stop'); await p.waitForTimeout(800);
   console.log('PREV:', (await p.textContent('#r_prev')).slice(0,80));
   await p.fill('#r_tr','Razgovor o budžetu...'); await p.click('#r_next');
   await p.waitForSelector('#p_ok',{timeout:8000});
-  await p.fill('[data-p="zadaci.0.zadatak"]','Pripremiti budžet'); 
+  await p.fill('[data-p="zadaci.0.zadatak"]','Pripremiti budžet');
+  for(const i of [0,1,2]){ await p.fill(`[data-p="tacke.${i}.rasprava"]`,'Rasprava '+i); await p.fill(`[data-p="tacke.${i}.zakljucak"]`,'Zaključak '+i); }
   await p.screenshot({path:'draft.png',fullPage:true});
   await p.click('#p_ok'); await p.waitForSelector('#p_ix1');
   console.log('STATUS:', await p.textContent('.badge.st-potvrdjen'));

@@ -14,7 +14,7 @@ const { chromium } = require('playwright');
     await p.selectOption('#n_sc',sc);
     await p.fill('#n_tema',tema); await p.fill('#n_mj','Zbornica & kabinet'); await p.fill('#n_pred','Direktor');
     await p.fill('#n_uc','Prvi Učesnik — direktor\nDrugi Đurđević — pedagog');
-    await p.fill('#n_dn',dn); await p.click('#n_go');
+    await p.fill('#n_dn',dn); await p.selectOption('#n_tip',{index:1}); await p.click('#n_go');
     await p.click('#s_bez');
   }
   async function popuni(zad){

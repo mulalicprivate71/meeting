@@ -109,7 +109,7 @@ let lsUpozoren=false;
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ if(!lsUpozoren){ lsUpozoren=true; alert("Podaci se ne mogu trajno sačuvati u ovom pregledniku (privatni prozor ili pun prostor). Preuzmite DOCX prije zatvaranja stranice."); } return false; } }
 let memStore = {};
 const lokalniDatum = (d=new Date()) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-const fmtDat = d => { if(!d) return ""; if(/T\d\d:\d\d/.test(String(d))){ const x=new Date(d); if(!isNaN(x)) d=lokalniDatum(x); } const p=String(d).slice(0,10).split("-"); return p.length===3&&p[0].length===4 ? `${p[2]}. ${p[1]}. ${p[0]}.` : String(d); };
+const fmtDat = d => { if(!d) return ""; if(/T\d\d:\d\d/.test(String(d))){ const x=new Date(d); if(!isNaN(x)) d=lokalniDatum(x); } const q=String(d).slice(0,10); return /^\d{4}-\d\d-\d\d$/.test(q) ? `${q.slice(8)}. ${q.slice(5,7)}. ${q.slice(0,4)}.` : esc(String(d)); };
 const velikoSlovo = t => { t=String(t||"").trim(); return t? t.charAt(0).toLocaleUpperCase("bs")+t.slice(1) : t; };
 
 /* ============ SKLADIŠTE PODATAKA ============ */
@@ -229,6 +229,7 @@ const store = {
   },
   // Snimak postoji samo na ovom računaru; "brisanje" znači brisanje lokalne kopije.
   async purge(m){
+    try{ localStorage.removeItem("zs_part_"+m.id); }catch(e){}
     await aud.del(m.id); await this.audit(m, "snimak obrisan s računara"); return {ok:true};
   }
 };
@@ -317,7 +318,7 @@ function prijava(){
   $("#tabs").innerHTML=""; $("#who").textContent=""; $("#logout").classList.add("hide");
   $("#main").innerHTML = `
   <h2>Prijava</h2>
-  ${DEMO? `<div class="note"><b>DEMO način.</b> Podaci ostaju samo u ovom pregledniku, a obrada snimka (prepoznavanje govora) nije povezana. Povezivanje s Firebase opisano je u uputama.${S.initGreska?" <br><b>Firebase se nije pokrenuo:</b> "+esc(S.initGreska):""}</div>`:""}
+  ${DEMO? `<div class="note"><b>DEMO način.</b> Podaci ostaju samo u ovom pregledniku, a obrada snimka radi ako u kartici Postavke upišete Gemini ključeve. Povezivanje s Firebase opisano je u uputama.${S.initGreska?" <br><b>Firebase se nije pokrenuo:</b> "+esc(S.initGreska):""}</div>`:""}
   ${S.bezUloge?`<div class="note">Vašem nalogu još nije dodijeljena uloga. Obratite se administratoru.</div>`:""}
   <div class="row" style="max-width:520px">
     <div><label>E-pošta</label><input id="em" type="email" autocomplete="username"></div>
@@ -402,7 +403,7 @@ function noviEkran(){
 /* ============ RADNI EKRAN (saglasnost → snimanje → obrada → pregled) ============ */
 function cur(){ return S.meetings.find(m=>m.id===S.cur); }
 function zaglavljeSastanka(m){
-  return `<p><span class="badge b-${m.scope}">${m.scope==="ZAJEDNICKI"?"Zajednički":m.scope}</span> <span class="badge st-${m.status}">${statusTekst(m.status)}</span> &nbsp;<b>${esc(m.tema)}</b> <span class="muted">· ${esc(m.tip)} · ${fmtDat(m.datum)}</span></p>`;
+  return `<p><span class="badge b-${esc(m.scope)}">${m.scope==="ZAJEDNICKI"?"Zajednički":esc(m.scope)}</span> <span class="badge st-${esc(m.status)}">${statusTekst(m.status)}</span> &nbsp;<b>${esc(m.tema)}</b> <span class="muted">· ${esc(m.tip)} · ${fmtDat(m.datum)}</span></p>`;
 }
 function statusTekst(s){ return {saglasnost:"saglasnost",snimanje:"snimanje",obrada:"obrada",nacrt:"nacrt",potvrdjen:"potvrđen"}[s]||s; }
 function radni(){
@@ -442,7 +443,7 @@ function ekranSnimanje(m){
   <div class="note">Ne zaključavajte ekran i ne prelazite u drugu aplikaciju dok traje snimanje. Za duge sastanke koristite laptop s mikrofonom na stolu.</div>
   <div class="rec"><span id="r_dot" class="dot hide"></span><span class="time" id="r_t">00:00:00</span>
     <button id="r_start">Počni snimanje</button><button id="r_stop" class="dng hide">Završi snimanje</button></div>
-  <p id="r_msg" class="muted"></p>
+  <p id="r_msg" class="muted" role="status" aria-live="polite"></p>
   <h3>Ili učitajte gotov audio zapis</h3>
   <input type="file" id="r_file" accept="audio/*">
   <div id="r_prev"></div>
@@ -519,7 +520,7 @@ function nacrtIzTranskripta(m){
   return m;
 }
 function ekranObrada(m){
-  $("#main").innerHTML = zaglavljeSastanka(m)+`<h2>Obrada snimka</h2><p class="muted">Sadržaj sastanka se šalje Googleu (besplatni Gemini) – odluka Direktora.</p><p id="ob" class="muted">Obrada je u toku…</p><div class="actions"><button id="ob_skip" class="sec hide">Nastavi s ručnim unosom</button></div>`;
+  $("#main").innerHTML = zaglavljeSastanka(m)+`<h2>Obrada snimka</h2><p class="muted">Sadržaj sastanka se šalje Googleu (besplatni Gemini) – odluka Direktora.</p><p id="ob" class="muted" role="status" aria-live="polite">Obrada je u toku…</p><div class="actions"><button id="ob_retry" class="hide">Pokušaj ponovo</button> <button id="ob_skip" class="sec hide">Nastavi s ručnim unosom</button></div>`;
   S.obrada = S.obrada || {};
   if(S.obrada[m.id]) return;
   S.obrada[m.id] = true;
@@ -533,7 +534,7 @@ function ekranObrada(m){
       setTimeout(render,900);
     }catch(e){
       delete S.obrada[m.id];
-      const el=$("#ob"); if(el){ el.innerHTML=`Obrada nije uspjela: ${esc(e.message)}`; $("#ob_skip").classList.remove("hide");
+      const el=$("#ob"); if(el){ el.innerHTML=`Obrada nije uspjela: ${esc(e.message)}`; $("#ob_skip").classList.remove("hide"); $("#ob_retry").classList.remove("hide"); $("#ob_retry").onclick=()=>render();
       $("#ob_skip").onclick=async()=>{ try{ m.status="nacrt"; await store.save(m); render(); }catch(e2){ alert("Greška: "+e2.message); } }; }
     }
   })();
@@ -683,7 +684,7 @@ function arhiva(){
   const lista = S.meetings.filter(m=>f==="sve"||m.scope===f);
   $("#main").innerHTML = `<h2>Arhiva zapisnika</h2>
   <div class="row" style="max-width:400px"><div><label>Prikaži</label><select id="a_f"><option value="sve">Sve</option><option value="IDSS">IDSS</option><option value="IMH">IMH</option><option value="ZAJEDNICKI">Zajednički sastanci uprave</option></select></div></div>
-  ${lista.length? lista.map(m=>`<div class="card"><span class="badge b-${m.scope}">${m.scope==="ZAJEDNICKI"?"Zajednički":m.scope}</span> <span class="badge st-${m.status}">${statusTekst(m.status)}</span>
+  ${lista.length? lista.map(m=>`<div class="card"><span class="badge b-${esc(m.scope)}">${m.scope==="ZAJEDNICKI"?"Zajednički":esc(m.scope)}</span> <span class="badge st-${esc(m.status)}">${statusTekst(m.status)}</span>
     <b> ${esc(m.tema)}</b><br><span class="muted">${esc(m.tip)} · ${fmtDat(m.datum)} · ${esc(m.povjerljivost)}</span>
     <div class="actions"><button class="sec" data-o="${m.id}">Otvori</button>${["saglasnost","snimanje","obrada"].includes(m.status)?"":""}</div></div>`).join("") : `<p class="muted">Nema zapisnika.</p>`}`;
   $("#a_f").value=f; $("#a_f").onchange=e=>{ S.filter=e.target.value; arhiva(); };

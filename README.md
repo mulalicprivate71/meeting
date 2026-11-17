@@ -10,4 +10,4 @@ Prototip rješenja za snimanje sastanaka, obradu snimka i zapisnik u propisanom 
 - `build/` — skripte koje prave obrasce i sastavljaju `index.html` (`build_tpl.py`); `build/att` su memorandumi. Pokretanje: `python3 build/build.py`, `python3 build/build_qp.py`, `python3 build/build_tpl.py` (potrebni Python 3 i `zip`)
 - `test/` — Playwright testovi (`node test/t.js` itd.; `t5.js` koristi simulirani Firebase iz `test/firebase-stub.js`; `node test/gemini.test.js` (Gemini i rotacija ključeva))
 
-Status: nije isprobano na stvarnom Firebase projektu (pravila, funkcije, Gemini) ni sa stvarnim snimkom; vidi `app/UPUTE.md`. Repozitorij držati privatnim (sadrži podatke i memorandume škole).
+Status: nije isprobano na stvarnom Firebase projektu (pravila, Gemini) ni sa stvarnim snimkom; vidi `app/UPUTE.md`. Repozitorij držati privatnim (sadrži podatke i memorandume škole).

@@ -5,3 +5,8 @@ build/tpl/
 test/out_*.docx
 test/mock.html
 functions/node_modules/
+__pycache__/
+*.pyc
+draft.png
+test/draft.png
+test/ispis.pdf

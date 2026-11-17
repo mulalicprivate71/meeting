@@ -104,7 +104,9 @@ function parseJson(txt) {
 // dijelovi: [{blob, mime}] — svaki dio je samostalan audio fajl
 async function transkribuj(ring, dijelovi, lang, o = {}) {
   const model = o.model || 'gemini-2.5-flash', fetchFn = o.fetch || root.fetch.bind(root), izlaz = [];
+  const gotovi = Array.isArray(o.gotovi) ? o.gotovi : [];   // već prepoznati dijelovi (nastavak nakon prekida)
   for (let i = 0; i < dijelovi.length; i++) {
+    if (typeof gotovi[i] === 'string' && gotovi[i].trim()) { izlaz.push(gotovi[i]); if (o.napredak) o.napredak(i + 1, dijelovi.length); continue; }
     const d = dijelovi[i];
     if (d.blob.size > INLINE_MAX) throw new Error('Dio snimka ' + (i + 1) + ' je prevelik (' + Math.round(d.blob.size / 1048576) + ' MB; najviše 14 MB). Podijelite zapis na kraće dijelove.');
     const data = await blobToBase64(d.blob);
@@ -117,19 +119,37 @@ async function transkribuj(ring, dijelovi, lang, o = {}) {
       return out.text.trim();
     });
     izlaz.push(t);
+    if (o.poDijelu) { try { o.poDijelu(i, t); } catch (e) {} }
     if (o.napredak) o.napredak(i + 1, dijelovi.length);
   }
   return izlaz.join('\n');
 }
 
-async function nacrt(ring, transkript, dnevni, o = {}) {
+async function nacrtJedan(ring, transkript, dnevni, o, dodatak, odOffset) {
   const model = o.model || 'gemini-2.5-flash', fetchFn = o.fetch || root.fetch.bind(root);
-  const korisnik = `Datum sastanka: ${o.datum || 'nepoznat'}\nPrisutni: ${(o.prisutni && o.prisutni.length) ? o.prisutni.join('; ') : 'nepoznato'}\n\nDnevni red:\n${dnevni.map((d, i) => `${i + 1}. ${d}`).join('\n')}\n\n<transkript>\n${transkript}\n</transkript>`;
+  const korisnik = `Datum sastanka: ${o.datum || 'nepoznat'}\nPrisutni: ${(o.prisutni && o.prisutni.length) ? o.prisutni.join('; ') : 'nepoznato'}\n\nDnevni red:\n${dnevni.map((d, i) => `${odOffset + i + 1}. ${d}`).join('\n')}\n${dodatak}\n<transkript>\n${transkript}\n</transkript>`;
   const out = await ring.run((key) => generate(key, model, {
     systemInstruction: { parts: [{ text: PROMPT }] }, contents: [{ role: 'user', parts: [{ text: korisnik }] }],
     generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 32000 } }, 240000, fetchFn));
-  if (out.finishReason === 'MAX_TOKENS') throw new Error('Nacrt je predug i nije završen. Sastanak je potrebno obraditi u dijelovima.');
+  if (out.finishReason === 'MAX_TOKENS') throw new Error('Nacrt je predug i nije završen.');
   return parseJson(out.text);
+}
+
+const GRUPA = 8;   // najviše toliko tačaka dnevnog reda u jednom pozivu (dug dnevni red se obrađuje u grupama)
+async function nacrt(ring, transkript, dnevni, o = {}) {
+  if (dnevni.length <= GRUPA) return nacrtJedan(ring, transkript, dnevni, o, '', 0);
+  const tacke = [];
+  for (let i = 0; i < dnevni.length; i += GRUPA) {
+    const g = dnevni.slice(i, i + GRUPA);
+    const d = await nacrtJedan(ring, transkript, g, o,
+      `\nOVA UPUTA IMA PRIORITET: obradi SAMO gore navedene tačke (numeracija je kao u cijelom dnevnom redu) i vrati "tacke" s tačno ${g.length} elemenata; "zadaci" vrati kao [] i "naredni" kao "".\n`, i);
+    const dt = Array.isArray(d.tacke) ? d.tacke : [];
+    for (let k = 0; k < g.length; k++) tacke.push(dt[k] || {});
+    if (o.napredakNacrta) o.napredakNacrta(Math.min(i + GRUPA, dnevni.length), dnevni.length);
+  }
+  const z = await nacrtJedan(ring, transkript, dnevni, o,
+    `\nOVA UPUTA IMA PRIORITET: vrati samo "zadaci" i "naredni" za CIJELI sastanak; "tacke" vrati kao [].\n`, 0);
+  return { tacke, zadaci: z.zadaci, naredni: z.naredni };
 }
 
 // Provjera i očišćeno spajanje odgovora modela s postojećim zapisnikom m

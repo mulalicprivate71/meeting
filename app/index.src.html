@@ -108,7 +108,8 @@ function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v
 let lsUpozoren=false;
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ if(!lsUpozoren){ lsUpozoren=true; alert("Podaci se ne mogu trajno sačuvati u ovom pregledniku (privatni prozor ili pun prostor). Preuzmite DOCX prije zatvaranja stranice."); } return false; } }
 let memStore = {};
-const fmtDat = d => { if(!d) return ""; const p=String(d).slice(0,10).split("-"); return p.length===3&&p[0].length===4 ? `${p[2]}. ${p[1]}. ${p[0]}.` : String(d); };
+const lokalniDatum = (d=new Date()) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const fmtDat = d => { if(!d) return ""; if(/T\d\d:\d\d/.test(String(d))){ const x=new Date(d); if(!isNaN(x)) d=lokalniDatum(x); } const p=String(d).slice(0,10).split("-"); return p.length===3&&p[0].length===4 ? `${p[2]}. ${p[1]}. ${p[0]}.` : String(d); };
 const velikoSlovo = t => { t=String(t||"").trim(); return t? t.charAt(0).toLocaleUpperCase("bs")+t.slice(1) : t; };
 
 /* ============ SKLADIŠTE PODATAKA ============ */
@@ -213,7 +214,10 @@ const store = {
     if(dijelovi.length){
       const imaSaglasnost = DEMO ? !!(m.saglasnost && m.saglasnost.data) : (await fb.db.collection("meetings").doc(m.id).collection("consents").doc("main").get()).exists;
       if(!imaSaglasnost) throw new Error("Nema evidentirane saglasnosti za snimanje; snimak se ne obrađuje.");
-      try{ transkript = await GM.transkribuj(ring, dijelovi.map(b=>({blob:b, mime:mimeZa(b)})), "bs", {model:cfg.model||undefined, napredak}); }
+      const kljuc="zs_part_"+m.id; let gotovi=[]; try{ gotovi=JSON.parse(localStorage.getItem(kljuc)||"[]"); }catch(e){}
+      try{ transkript = await GM.transkribuj(ring, dijelovi.map(b=>({blob:b, mime:mimeZa(b)})), "bs", {model:cfg.model||undefined, napredak, gotovi,
+        poDijelu:(i,t)=>{ gotovi[i]=t; try{ localStorage.setItem(kljuc, JSON.stringify(gotovi)); }catch(e){} } });
+        try{ localStorage.removeItem(kljuc); }catch(e){} }
       catch(e){ console.error(e); throw new Error("Prepoznavanje govora nije uspjelo: "+e.message); }
       await this.audit(m, "transkript izrađen");   // u DEMO se ne bilježi
     }
@@ -248,6 +252,7 @@ const aud = (()=>{
       Object.keys(mem[id]||{}).forEach(n=>{ out[String(n).padStart(4,"0")] = out[String(n).padStart(4,"0")] || mem[id][n]; });
       return Object.keys(out).sort().map(k=>out[k]).filter(Boolean);
     },
+    async maxN(id){ let mx=0; try{ const keys=await tx("readonly",st=>st.getAllKeys()); (keys||[]).filter(k=>k.startsWith(id+"|")).forEach(k=>{ mx=Math.max(mx,parseInt(k.split("|")[1],10)||0); }); }catch(e){} Object.keys(mem[id]||{}).forEach(n=>{ mx=Math.max(mx,Number(n)||0); }); return mx; },
     async del(id){ delete mem[id]; try{ const keys=await tx("readonly",st=>st.getAllKeys()); for(const k of (keys||[]).filter(k=>k.startsWith(id+"|"))) await tx("readwrite",st=>st.delete(k)); }catch(e){} }
   };
 })();
@@ -257,7 +262,7 @@ const S = {user:null, tab:"novi", meetings:[], cur:null, rec:null};
 
 function prazanZapisnik(base){
   return Object.assign({
-    id:uid(), created:new Date().toISOString(), status:"nacrt", scope:"IDSS", tip:TIPOVI[0], tema:"", mjesto:"", datum:new Date().toISOString().slice(0,10),
+    id:uid(), created:new Date().toISOString(), status:"nacrt", scope:"IDSS", tip:TIPOVI[0], tema:"", mjesto:"", datum:lokalniDatum(),
     pocetak:"", kraj:"", povjerljivost:"Opći", broj:"", snimano:false,
     saglasnost:{data:false,dao:"",kada:"",tekst:""},
     prisutni:[{ime:"",uloga:"",napomena:""}], odsutniOp:"", odsutniNeop:"", bezGlasa:"",
@@ -365,7 +370,7 @@ function noviEkran(){
   <label>Tema sastanka</label><input id="n_tema">
   <div class="row">
     <div><label>Mjesto</label><input id="n_mj"></div>
-    <div><label>Datum</label><input id="n_dat" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div><label>Datum</label><input id="n_dat" type="date" value="${lokalniDatum()}"></div>
     <div><label>Nivo povjerljivosti</label><select id="n_pov"><option>Opći</option><option>Povjerljiv</option><option>Strogo povjerljivo</option></select></div>
   </div>
   <div class="row">
@@ -445,7 +450,7 @@ function ekranSnimanje(m){
   <textarea id="r_tr" placeholder="Tekst razgovora…">${esc(m.transkript||"")}</textarea>
   <div class="actions"><button id="r_next" class="sec">Nastavi na obradu</button></div>`;
   let chunks=[], segNo=0, t0=0, tick=null, rot=null, mr=null, stream=null, wl=null, failed=0, uploaded=false, rotira=false, mt=null;
-  const SEG_MS = 20*60*1000;     // snimak se dijeli na samostalne dijelove od po 20 minuta (svaki ostaje ispod ograničenja Geminija)
+  const SEG_MS = window.__SEG_MS || 20*60*1000;     // snimak se dijeli na samostalne dijelove od po 20 minuta (svaki ostaje ispod ograničenja Geminija)
   const msg=t=>$("#r_msg").textContent=t;
   async function prikaziDijelove(trajanje){
     const dij = await aud.all(m.id);
@@ -478,6 +483,7 @@ function ekranSnimanje(m){
     }catch(e){ msg("Mikrofon nije dostupan: "+e.message+". Možete učitati gotov audio zapis."); return; }
     mt = ["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t));
     try{ if(navigator.wakeLock) wl = await navigator.wakeLock.request("screen"); }catch(e){}
+    segNo = await aud.maxN(m.id);   // nakon ponovnog učitavanja stranice novi dijelovi se dodaju, ne prepisuju postojeće
     try{ pokreniDio(); }catch(e){ msg("Snimanje nije moguće: "+e.message); stream.getTracks().forEach(t=>t.stop()); return; }
     t0=Date.now(); m.pocetak = m.pocetak || new Date().toTimeString().slice(0,5);
     $("#r_dot").classList.remove("hide"); $("#r_stop").classList.remove("hide"); $("#r_start").classList.add("hide");
@@ -488,8 +494,10 @@ function ekranSnimanje(m){
   $("#r_stop").onclick=()=>{ rotira=false; try{ mr.stop(); }catch(e){} };
   $("#r_file").onchange=async e=>{
     const f=e.target.files[0]; if(!f) return;
-    if(S.rec || segNo){ msg("Već ste snimali u ovom sastanku. Audio zapis učitajte u novom sastanku."); e.target.value=""; return; }
+    if(S.rec || segNo || (await aud.maxN(m.id))){ msg("Već ste snimali u ovom sastanku. Audio zapis učitajte u novom sastanku."); e.target.value=""; return; }
     if(uploaded){ msg("Audio zapis je već učitan. Za drugi zapis napravite novi sastanak."); e.target.value=""; return; }
+    if(!f.size){ msg("Odabrani zapis je prazan (0 KB)."); e.target.value=""; return; }
+    if(f.type && !/^(audio|video)\//.test(f.type)){ msg("Odabrana datoteka nije audio zapis ("+f.type+")."); e.target.value=""; return; }
     if(f.size > 14*1024*1024){ msg("Zapis je prevelik ("+Math.round(f.size/1048576)+" MB; najviše 14 MB, oko jedan sat). Podijelite ga na kraće dijelove."); e.target.value=""; return; }
     if(!(await aud.put(m.id,1,f))){ msg("Zapis se ne može sačuvati na disk preglednika; ostaje u memoriji dok ne zatvorite stranicu."); }
     uploaded=true; m.fazaSnimka="otpremljeno"; await store.save(m); await prikaziDijelove(null); msg("Zapis je učitan (ostaje na ovom računaru).");
@@ -602,6 +610,12 @@ function ekranPregled(m){
       if(!(m.broj||"").trim()) problemi.push("Nije upisan broj zapisnika");
       if(!m.pocetak||!m.kraj) problemi.push("Nije upisano vrijeme početka ili završetka");
       m.zadaci.filter(z=>z.zadatak.trim()).forEach((z,i)=>{ if(!z.odgovorna.trim()) problemi.push(`Zadatak ${i+1}: nema odgovorne osobe`); if(!z.rok) problemi.push(`Zadatak ${i+1}: nema krajnjeg roka`); });
+      if(m.pocetak&&m.kraj&&m.kraj<=m.pocetak) problemi.push("Vrijeme završetka nije poslije početka");
+      { const imena=m.prisutni.map(p=>(p.ime||"").trim().toLowerCase()).filter(Boolean);
+        if(new Set(imena).size<imena.length) problemi.push("Isti učesnik je upisan više puta");
+        const danas=lokalniDatum();
+        m.zadaci.filter(z=>z.zadatak.trim()).forEach((z,i)=>{ if(z.rok&&m.datum&&z.rok<m.datum) problemi.push(`Zadatak ${i+1}: rok je prije datuma sastanka`);
+          else if(z.rok&&z.rok<danas) problemi.push(`Zadatak ${i+1}: rok je već prošao`); }); }
       if(!m.predsjedavajuci.trim()) problemi.push("Nije upisan predsjedavajući");
       if(!m.zapisnicar.trim()) problemi.push("Nije upisan zapisničar");
       if(JSON.stringify(m).includes("[nejasno")) problemi.push("U zapisniku su još označena mjesta [nejasno]");

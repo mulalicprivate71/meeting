@@ -81,3 +81,6 @@ Aplikacija pri potvrdi mora upozoriti na zadatke bez roka i bez odgovorne osobe.
 8. **Sporedni razgovor** (kafa, voda) → izostaviti.
 9. **Jezik zapisnika:** književni bosanski (latinica), bez kolokvijalizama („frka“, „kontam“, „džaba“) i bez srbizama i hrvatizama.
 10. **Izvodi:** izvod za IMH smije sadržavati tačke 1, 2, 4, 5, 6 (zajedničke i IMH), ali **ne tačku 3 (IDSS)**; izvod za IDSS obrnuto (ne tačku 2).
+
+## Stres-test (2026-11-17)
+`test/stres_gemini.test.js` (dug dnevni red u grupama, nastavak prepoznavanja, loši odgovori modela, ključevi), `test/t7.js` (lažni mikrofon: rotacija dijelova, nastavak nakon ponovnog učitavanja), `test/t8.js` (mikrofon odbijen, prazan/prevelik zapis, lokalni datum). Stvarni Gemini, CORS i prihvatanje `audio/webm` ostaju neprovjereni u ovom okruženju.

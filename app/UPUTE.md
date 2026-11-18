@@ -51,6 +51,11 @@ provjera odgovora modela, potvrda kroz transakciju, brisanje snimka, zaključava
 **Nije provjereno:** pravila `firestore.rules` (nisu pokretana u Firebase emulatoru ni na stvarnom projektu), pozivi stvarnom Gemini API-ju iz preglednika
 (CORS), prihvata li Gemini format `audio/webm` koji snima Chrome, kvalitet prepoznavanja bosanskog, rad na iPhoneu s zaključanim ekranom, DOCX u samom Wordu.
 
+## 5a. Rok čuvanja
+Potvrđeni zapisnik se čuva godinu dana od potvrde. U Arhivi se zapisniku kojem rok ističe u 30 dana prikazuje datum isteka, a istekli dobija dugme **Uništi (istekao rok)** (vidi ga samo direktor).
+Uništavanje briše zapisnik, saglasnost i dnevnik radnji; ostaje samo zapis u zbirci `destroyed` (ustanova, broj, vrsta, datum, ko i kada; bez teme i sadržaja).
+Pravila Firestorea ne dozvoljavaju brisanje prije isteka 365 dana od potvrde ni drugom korisniku osim direktoru. Prije uništenja preuzmite DOCX ako ga trebate. Nema automatskog brisanja: aplikacija samo upozorava, a odluku donosi Direktor.
+
 ## 6. Ograničenja
 - Jedan dio snimka najviše 14 MB (oko sat vremena; snimanje dijeli samo na 20 minuta). Učitani gotov zapis veći od 14 MB treba podijeliti.
 - Besplatni Gemini ima dnevna i minutna ograničenja; kod dugih sastanaka obrada može čekati ili preći na drugi ključ.

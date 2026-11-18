@@ -84,8 +84,8 @@ BL(['Vodi se jedan snimak i jedan zapisnik (QP 10.ZS-02).','Cijeli zajednički z
 H2('6.8 Povjerljivost i zaštita podataka')
 BL(['Pristup zapisnicima određen je ulogom osobe u ustanovi i nivoom povjerljivosti zapisnika.','Zapisnici ustanova IDSS i IMH čuvaju se odvojeno.','Pristup i izmjene se evidentiraju u dnevniku aplikacije.'])
 H2('6.9 Čuvanje i brisanje snimaka')
-BL(['Audio snimak čuva se samo na računaru organizatora, ne na serveru, i briše se nakon potvrde zapisnika.','Potvrđeni zapisnik i transkript čuvaju se u elektronskoj arhivi aplikacije godinu dana.'])
-MARK('Rok čuvanja zapisnika i transkripta od godinu dana odredio je Direktor; po isteku roka Direktor odobrava uništavanje.')
+BL(['Audio snimak čuva se samo na računaru organizatora, ne na serveru, i briše se nakon potvrde zapisnika.','Potvrđeni zapisnik i transkript čuvaju se u elektronskoj arhivi aplikacije godinu dana od datuma potvrde.','Aplikacija označava zapisnike kojima rok ističe u narednih 30 dana i one kojima je rok istekao. Istekli zapisnik uništava Direktor u aplikaciji; brisanje je moguće samo nakon isteka roka i ne može se poništiti. Nakon uništenja ostaje samo zapis o uništenju (ustanova, broj, vrsta i datum sastanka, ko je uništio i kada), bez teme i sadržaja.','Prije uništenja Direktor odlučuje je li zapisnik potrebno preuzeti (DOCX) ili dalje čuvati zbog drugog zakonskog ili ugovornog razloga.'])
+MARK('Rok čuvanja od godinu dana (od potvrde zapisnika) odredio je Direktor; uništavanje u aplikaciji obavlja i odobrava Direktor.')
 H2('6.10 Prevod na engleski')
 P('Zapisnik se sastavlja na bosanskom jeziku. Na zahtjev korisnika izrađuje se prevod potvrđenog zapisnika na engleski jezik, koji se čuva uz zapisnik i označava kao prevod. Mjerodavan je zapisnik na bosanskom jeziku.')
 

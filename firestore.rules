@@ -97,7 +97,9 @@ service cloud.firestore {
             || resource.data.status == 'snimanje'
             || exists(/databases/$(database)/documents/meetings/$(id)/consents/main));
 
-      allow delete: if false;
+      // Brisanje (uništavanje) samo potvrđenog zapisnika kojem je istekao rok čuvanja od godinu dana; odobrava direktor.
+      allow delete: if resource.data.status == 'potvrdjen' && canConfirm(resource.data.scope)
+        && request.time > resource.data.confirmedAt + duration.value(365, 'd');
 
       // Evidencija saglasnosti za snimanje: samo dok je sastanak u fazi saglasnosti; nema izmjene ni brisanja.
       match /consents/{cid} {
@@ -110,7 +112,10 @@ service cloud.firestore {
           && request.resource.data.givenBy is string
           && request.resource.data.recordedBy == request.auth.uid
           && request.resource.data.recordedAt == request.time;
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if exists(meetingPath(id)) && get(meetingPath(id)).data.status == 'potvrdjen'
+          && canConfirm(get(meetingPath(id)).data.scope)
+          && request.time > get(meetingPath(id)).data.confirmedAt + duration.value(365, 'd');
       }
 
       // Dnevnik radnji: dodaje autor ili direktor (vrijeme postavlja server); čita direktor; nema izmjene ni brisanja.
@@ -122,8 +127,24 @@ service cloud.firestore {
           && request.resource.data.action is string && request.resource.data.action.size() < 200
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.at == request.time;
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if exists(meetingPath(id)) && get(meetingPath(id)).data.status == 'potvrdjen'
+          && canConfirm(get(meetingPath(id)).data.scope)
+          && request.time > get(meetingPath(id)).data.confirmedAt + duration.value(365, 'd');
       }
+    }
+
+    // Evidencija uništenih zapisnika (bez teme i sadržaja): čita i upisuje direktor; nema izmjene ni brisanja.
+    match /destroyed/{id} {
+      allow read: if signedIn() && canConfirm(resource.data.scope);
+      allow create: if signedIn() && canConfirm(request.resource.data.scope)
+        && request.resource.data.keys().hasOnly(['scope', 'meetingId', 'broj', 'tip', 'datum', 'destroyedBy', 'at'])
+        && request.resource.data.meetingId == id
+        && request.resource.data.destroyedBy == request.auth.uid
+        && request.resource.data.at == request.time
+        && exists(meetingPath(id)) && get(meetingPath(id)).data.status == 'potvrdjen'
+        && request.time > get(meetingPath(id)).data.confirmedAt + duration.value(365, 'd');
+      allow update, delete: if false;
     }
   }
 }

@@ -110,6 +110,11 @@ function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true
 let memStore = {};
 const lokalniDatum = (d=new Date()) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const fmtDat = d => { if(!d) return ""; if(/T\d\d:\d\d/.test(String(d))){ const x=new Date(d); if(!isNaN(x)) d=lokalniDatum(x); } const q=String(d).slice(0,10); return /^\d{4}-\d\d-\d\d$/.test(q) ? `${q.slice(8)}. ${q.slice(5,7)}. ${q.slice(0,4)}.` : esc(String(d)); };
+const ROK_DANA = 365;   // rok čuvanja potvrđenog zapisnika (odluka Direktora: godinu dana od potvrde)
+const rokDo = m => { const t = m.status==="potvrdjen" && (m._potvrdjeno || m.potvrdjenoKada); if(!t) return null; const d = new Date(t); if(isNaN(d)) return null; d.setTime(d.getTime()+ROK_DANA*864e5); return d; };
+const rokIstekao = m => { const d = rokDo(m); return !!d && d.getTime() < Date.now(); };
+const rokBlizu = m => { const d = rokDo(m); return !!d && d.getTime() >= Date.now() && d.getTime() < Date.now()+30*864e5; };
+const mozeUnistiti = sc => DEMO || (sc==="ZAJEDNICKI" ? (S.mem||{}).IMH==="direktor" && (S.mem||{}).IDSS==="direktor" : (S.mem||{})[sc]==="direktor");
 const velikoSlovo = t => { t=String(t||"").trim(); return t? t.charAt(0).toLocaleUpperCase("bs")+t.slice(1) : t; };
 
 /* ============ SKLADIŠTE PODATAKA ============ */
@@ -156,7 +161,7 @@ const store = {
       else { qs.push(col.where("scope","==",sc).where("conf","==",false).get()); qs.push(col.where("scope","==",sc).where("createdBy","==",uid).get()); }
     });
     const res = await Promise.all(qs), byId = {};
-    res.forEach(snap=>snap.forEach(d=>{ const r=d.data(); byId[d.id]={...r.podaci, id:d.id, status:r.status, scope:r.scope, _rev:r.rev}; }));
+    res.forEach(snap=>snap.forEach(d=>{ const r=d.data(); byId[d.id]={...r.podaci, id:d.id, status:r.status, scope:r.scope, _rev:r.rev, _potvrdjeno:(r.confirmedAt&&r.confirmedAt.toDate?r.confirmedAt.toDate().toISOString():"")}; }));
     return Object.values(byId).sort((a,b)=>(b.created||"").localeCompare(a.created||""));
   },
   save(m){
@@ -226,6 +231,23 @@ const store = {
     try{ d = await GM.nacrt(ring, transkript, (m.tacke||[]).map(t=>String(t.naslov||"")), {model:cfg.model||undefined, prisutni:(m.prisutni||[]).filter(p=>p.ime).map(p=>p.ime+(p.uloga?" ("+p.uloga+")":"")), datum:m.datum}); }
     catch(e){ console.error(e); throw new Error("Izrada nacrta nije uspjela: "+e.message); }
     return {minutes: GM.sastavi(m, d, transkript)};
+  },
+  // Uništavanje zapisnika kojem je istekao rok čuvanja (odobrava Direktor). Ostaje samo zapis o uništenju (bez teme i sadržaja).
+  async destroy(m){
+    if(!rokIstekao(m)) throw new Error("Rok čuvanja još nije istekao.");
+    if(!DEMO){
+      const ref = fb.db.collection("meetings").doc(m.id);
+      try{
+        await fb.db.collection("destroyed").doc(m.id).set({scope:m.scope, meetingId:m.id, broj:String(m.broj||""), tip:String(m.tip||""), datum:String(m.datum||""), destroyedBy:S.user.id, at:fb.ts()});
+        for(const c of ["audit","consents"]){ const sn = await ref.collection(c).get(); for(const d of sn.docs) await d.ref.delete(); }
+        await ref.delete();
+      }catch(e){ throw fbErr(e); }
+    } else {
+      delete memStore[m.id];
+      const all = (lsGet("zs_meetings", [])||[]).filter(x=>x.id!==m.id); lsSet("zs_meetings", all);
+    }
+    await aud.del(m.id); try{ localStorage.removeItem("zs_part_"+m.id); }catch(e){}
+    return {ok:true};
   },
   // Snimak postoji samo na ovom računaru; "brisanje" znači brisanje lokalne kopije.
   async purge(m){
@@ -548,7 +570,7 @@ function ekranPregled(m){
   const inp = (path,val,ph="",tip="text")=>`<input ${d} type="${tip}" data-p="${path}" value="${esc(val)}" placeholder="${esc(ph)}">`;
   $("#main").innerHTML = zaglavljeSastanka(m)+`
   <h2>${lock?"Potvrđeni zapisnik":"Pregled i ispravka nacrta"}</h2>
-  ${lock?`<div class="note ok">Zapisnik je potvrđen (${esc(m.potvrdio)}, ${fmtDat(m.potvrdjenoKada)}) i zaključan.</div>`:`<div class="note">Nacrt nije službeni zapisnik dok ga ovlaštena osoba ne potvrdi. Nejasna mjesta označite kao <b>[nejasno]</b>. Rok i odgovornu osobu upisujte samo ako su izričito dogovoreni.</div>`}
+  ${lock?`<div class="note ok">Zapisnik je potvrđen (${esc(m.potvrdio)}, ${fmtDat(m.potvrdjenoKada)}) i zaključan. Rok čuvanja do ${rokDo(m)?fmtDat(rokDo(m).toISOString()):"—"}.</div>`:`<div class="note">Nacrt nije službeni zapisnik dok ga ovlaštena osoba ne potvrdi. Nejasna mjesta označite kao <b>[nejasno]</b>. Rok i odgovornu osobu upisujte samo ako su izričito dogovoreni.</div>`}
   <h3>1. Osnovni podaci</h3>
   <div class="row">
     <div><label>Broj zapisnika</label>${inp("broj",m.broj,"npr. 01/2026")}</div>
@@ -686,9 +708,16 @@ function arhiva(){
   <div class="row" style="max-width:400px"><div><label>Prikaži</label><select id="a_f"><option value="sve">Sve</option><option value="IDSS">IDSS</option><option value="IMH">IMH</option><option value="ZAJEDNICKI">Zajednički sastanci uprave</option></select></div></div>
   ${lista.length? lista.map(m=>`<div class="card"><span class="badge b-${esc(m.scope)}">${m.scope==="ZAJEDNICKI"?"Zajednički":esc(m.scope)}</span> <span class="badge st-${esc(m.status)}">${statusTekst(m.status)}</span>
     <b> ${esc(m.tema)}</b><br><span class="muted">${esc(m.tip)} · ${fmtDat(m.datum)} · ${esc(m.povjerljivost)}</span>
-    <div class="actions"><button class="sec" data-o="${m.id}">Otvori</button>${["saglasnost","snimanje","obrada"].includes(m.status)?"":""}</div></div>`).join("") : `<p class="muted">Nema zapisnika.</p>`}`;
+    ${rokIstekao(m)?`<div class="note">Rok čuvanja je istekao ${fmtDat(rokDo(m).toISOString())}. Zapisnik se uništava uz odobrenje Direktora.</div>`:(rokBlizu(m)?`<div class="muted">Rok čuvanja ističe ${fmtDat(rokDo(m).toISOString())}.</div>`:"")}
+    <div class="actions"><button class="sec" data-o="${m.id}">Otvori</button>${rokIstekao(m)&&mozeUnistiti(m.scope)?`<button class="dng" data-x="${m.id}">Uništi (istekao rok)</button>`:""}</div></div>`).join("") : `<p class="muted">Nema zapisnika.</p>`}`;
   $("#a_f").value=f; $("#a_f").onchange=e=>{ S.filter=e.target.value; arhiva(); };
   document.querySelectorAll("[data-o]").forEach(b=>b.onclick=()=>{ S.cur=b.dataset.o; render(); });
+  document.querySelectorAll("[data-x]").forEach(b=>b.onclick=async()=>{
+    const m = S.meetings.find(x=>x.id===b.dataset.x); if(!m) return;
+    if(!confirm("Trajno uništiti zapisnik „"+(m.tema||"")+"“ ("+fmtDat(m.datum)+")?\n\nRok čuvanja je istekao. Brisanje se ne može poništiti; ostaje samo zapis o uništenju (bez sadržaja). Prije toga preuzmite DOCX ako ga trebate.")) return;
+    b.disabled=true;
+    try{ await store.destroy(m); S.meetings = await store.list(); arhiva(); }catch(e){ alert("Uništavanje nije uspjelo: "+e.message); b.disabled=false; }
+  });
 }
 
 function postavke(){
